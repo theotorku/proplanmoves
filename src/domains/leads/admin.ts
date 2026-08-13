@@ -1,6 +1,11 @@
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/domains/auth/server";
-import type { RoleCode } from "@/domains/auth/roles";
+import { isRoleCode, type RoleCode } from "@/domains/auth/roles";
+import {
+  canAssignLead,
+  leadAssigneeFilterSchema,
+  type AssignableStaff
+} from "./assignment";
 import {
   canTransitionLeadStatus,
   leadStatusSchema,
@@ -9,6 +14,7 @@ import {
 
 export const leadListFiltersSchema = z.object({
   status: leadStatusSchema.or(z.literal("all")).default("all"),
+  assignee: leadAssigneeFilterSchema,
   search: z.string().trim().max(80).optional()
 });
 
@@ -24,6 +30,8 @@ export type AdminLeadSummary = {
   customerName: string;
   customerEmail: string | null;
   customerPhone: string | null;
+  assignedProfileId: string | null;
+  assignedToName: string | null;
 };
 
 export type AdminLeadDetail = AdminLeadSummary & {
@@ -77,12 +85,14 @@ type LeadRow = {
   move_type: string;
   requested_move_date: string | null;
   created_at: string;
+  assigned_profile_id: string | null;
   customers: {
     first_name: string;
     last_name: string;
     email: string | null;
     phone: string | null;
   } | null;
+  assignee: { full_name: string } | null;
 };
 
 type LeadDetailRow = {
@@ -102,12 +112,14 @@ type LeadDetailRow = {
   lead_source: string;
   lost_reason: string | null;
   created_at: string;
+  assigned_profile_id: string | null;
   customers: {
     first_name: string;
     last_name: string;
     email: string | null;
     phone: string | null;
   } | null;
+  assignee: { full_name: string } | null;
 };
 
 type AddressRow = {
@@ -146,13 +158,19 @@ export async function listAdminLeads(filters: Partial<LeadListFilters> = {}): Pr
   let query = supabase
     .from("leads")
     .select(
-      "id, reference, status, move_type, requested_move_date, created_at, customers(first_name, last_name, email, phone)"
+      "id, reference, status, move_type, requested_move_date, created_at, assigned_profile_id, customers(first_name, last_name, email, phone), assignee:profiles(full_name)"
     )
     .order("created_at", { ascending: false })
     .limit(50);
 
   if (parsedFilters.status !== "all") {
     query = query.eq("status", parsedFilters.status);
+  }
+
+  if (parsedFilters.assignee === "unassigned") {
+    query = query.is("assigned_profile_id", null);
+  } else if (parsedFilters.assignee !== "all") {
+    query = query.eq("assigned_profile_id", parsedFilters.assignee);
   }
 
   if (parsedFilters.search) {
@@ -173,7 +191,7 @@ export async function getAdminLeadDetail(leadId: string): Promise<AdminLeadDetai
   const { data: lead, error: leadError } = await supabase
     .from("leads")
     .select(
-      "id, reference, customer_id, status, move_type, origin_address_id, destination_address_id, requested_move_date, bedroom_count, needs_packing, needs_storage, estimated_boxes, notes, lead_source, lost_reason, created_at, customers(first_name, last_name, email, phone)"
+      "id, reference, customer_id, status, move_type, origin_address_id, destination_address_id, requested_move_date, bedroom_count, needs_packing, needs_storage, estimated_boxes, notes, lead_source, lost_reason, created_at, assigned_profile_id, customers(first_name, last_name, email, phone), assignee:profiles(full_name)"
     )
     .eq("id", leadId)
     .maybeSingle()
@@ -351,6 +369,76 @@ export async function addLeadNote(params: {
     : { ok: false as const, message: result.message };
 }
 
+export async function listAssignableStaff(): Promise<AssignableStaff[]> {
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("list_assignable_staff");
+
+  if (error) {
+    throw new Error(`Unable to load assignable staff: ${error.message}`);
+  }
+
+  const rows = z
+    .array(
+      z.object({
+        staff_id: z.string().uuid(),
+        staff_name: z.string(),
+        staff_roles: z.array(z.string())
+      })
+    )
+    .parse(data ?? []);
+
+  return rows.map((row) => ({
+    profileId: row.staff_id,
+    fullName: row.staff_name,
+    roles: row.staff_roles.filter(isRoleCode)
+  }));
+}
+
+export async function assignLead(params: {
+  leadId: string;
+  expectedProfileId: string | null;
+  assigneeProfileId: string | null;
+  actorProfileId: string;
+  actorRoles: readonly RoleCode[];
+}) {
+  const decision = canAssignLead({
+    actorRoles: params.actorRoles,
+    actorProfileId: params.actorProfileId,
+    currentAssigneeProfileId: params.expectedProfileId,
+    nextAssigneeProfileId: params.assigneeProfileId
+  });
+
+  if (!decision.allowed) {
+    return { ok: false as const, message: decision.reason };
+  }
+
+  const supabase = await createSupabaseServerClient();
+  const { data, error } = await supabase.rpc("assign_lead", {
+    p_lead_id: params.leadId,
+    p_expected_profile_id: params.expectedProfileId,
+    p_assignee_profile_id: params.assigneeProfileId
+  });
+
+  if (error) {
+    throw new Error(`Unable to assign lead: ${error.message}`);
+  }
+
+  const result = z
+    .discriminatedUnion("ok", [
+      z.object({ ok: z.literal(true), changed: z.boolean() }),
+      z.object({
+        ok: z.literal(false),
+        code: z.string(),
+        message: z.string()
+      })
+    ])
+    .parse(data);
+
+  return result.ok
+    ? { ok: true as const }
+    : { ok: false as const, message: result.message };
+}
+
 function mapLeadSummary(lead: LeadRow | LeadDetailRow): AdminLeadSummary {
   return {
     id: lead.id,
@@ -363,7 +451,9 @@ function mapLeadSummary(lead: LeadRow | LeadDetailRow): AdminLeadSummary {
       ? `${lead.customers.first_name} ${lead.customers.last_name}`
       : "Unknown customer",
     customerEmail: lead.customers?.email ?? null,
-    customerPhone: lead.customers?.phone ?? null
+    customerPhone: lead.customers?.phone ?? null,
+    assignedProfileId: lead.assigned_profile_id,
+    assignedToName: lead.assignee?.full_name ?? null
   };
 }
 

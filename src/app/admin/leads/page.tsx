@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { requireAnyRole } from "@/domains/auth/server";
-import { leadListFiltersSchema, listAdminLeads } from "@/domains/leads/admin";
+import { leadListFiltersSchema, listAdminLeads, listAssignableStaff } from "@/domains/leads/admin";
 
 export const dynamic = "force-dynamic";
 
@@ -11,11 +11,17 @@ type PageProps = {
 export default async function AdminLeadsPage({ searchParams }: PageProps) {
   await requireAnyRole(["owner", "admin", "estimator", "dispatcher", "viewer"]);
   const query = await searchParams;
-  const filters = leadListFiltersSchema.parse({
+  // Filters arrive from user-editable query strings, so an unrecognized value
+  // falls back to the unfiltered queue instead of failing the page.
+  const requestedFilters = leadListFiltersSchema.safeParse({
     status: typeof query.status === "string" ? query.status : "all",
+    assignee: typeof query.assignee === "string" ? query.assignee : "all",
     search: typeof query.search === "string" ? query.search : undefined
   });
-  const leads = await listAdminLeads(filters);
+  const filters = requestedFilters.success
+    ? requestedFilters.data
+    : leadListFiltersSchema.parse({});
+  const [leads, staff] = await Promise.all([listAdminLeads(filters), listAssignableStaff()]);
 
   return (
     <main className="min-h-screen px-6 py-8">
@@ -32,7 +38,7 @@ export default async function AdminLeadsPage({ searchParams }: PageProps) {
           </Link>
         </div>
 
-        <form className="mb-4 grid gap-3 rounded-md border border-neutral-300 bg-white p-4 md:grid-cols-[180px_1fr_auto]">
+        <form className="mb-4 grid gap-3 rounded-md border border-neutral-300 bg-white p-4 md:grid-cols-[180px_200px_1fr_auto]">
           <label>
             <span className="text-sm font-medium">Status</span>
             <select className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2" defaultValue={filters.status} name="status">
@@ -46,6 +52,18 @@ export default async function AdminLeadsPage({ searchParams }: PageProps) {
               <option value="unresponsive">Unresponsive</option>
               <option value="disqualified">Disqualified</option>
               <option value="lost">Lost</option>
+            </select>
+          </label>
+          <label>
+            <span className="text-sm font-medium">Assigned to</span>
+            <select className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2" defaultValue={filters.assignee} name="assignee">
+              <option value="all">Anyone</option>
+              <option value="unassigned">Unassigned</option>
+              {staff.map((member) => (
+                <option key={member.profileId} value={member.profileId}>
+                  {member.fullName}
+                </option>
+              ))}
             </select>
           </label>
           <label>
@@ -65,6 +83,7 @@ export default async function AdminLeadsPage({ searchParams }: PageProps) {
                 <th className="px-4 py-3">Customer</th>
                 <th className="px-4 py-3">Move</th>
                 <th className="px-4 py-3">Status</th>
+                <th className="px-4 py-3">Assigned to</th>
                 <th className="px-4 py-3">Move date</th>
                 <th className="px-4 py-3">Created</th>
               </tr>
@@ -72,7 +91,7 @@ export default async function AdminLeadsPage({ searchParams }: PageProps) {
             <tbody>
               {leads.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-neutral-600" colSpan={6}>
+                  <td className="px-4 py-6 text-neutral-600" colSpan={7}>
                     No leads have been submitted yet.
                   </td>
                 </tr>
@@ -90,6 +109,9 @@ export default async function AdminLeadsPage({ searchParams }: PageProps) {
                     </td>
                     <td className="px-4 py-3">{lead.moveType.replace("_", " ")}</td>
                     <td className="px-4 py-3">{lead.status}</td>
+                    <td className="px-4 py-3">
+                      {lead.assignedToName ?? <span className="text-neutral-500">Unassigned</span>}
+                    </td>
                     <td className="px-4 py-3">{lead.requestedMoveDate ?? "Flexible"}</td>
                     <td className="px-4 py-3">{new Date(lead.createdAt).toLocaleDateString("en-US")}</td>
                   </tr>

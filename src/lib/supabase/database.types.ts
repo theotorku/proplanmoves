@@ -255,6 +255,14 @@ export type Database = {
         };
         Returns: Json;
       };
+      assign_lead: {
+        Args: {
+          p_lead_id: string;
+          p_expected_profile_id: string | null;
+          p_assignee_profile_id: string | null;
+        };
+        Returns: Json;
+      };
       bootstrap_initial_owner: {
         Args: {
           p_user_id: string;
@@ -270,6 +278,14 @@ export type Database = {
           p_window_seconds: number;
         };
         Returns: Json;
+      };
+      list_assignable_staff: {
+        Args: Record<string, never>;
+        Returns: {
+          staff_id: string;
+          staff_name: string;
+          staff_roles: string[];
+        }[];
       };
       submit_public_lead_request: {
         Args: { payload: Json };

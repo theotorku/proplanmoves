@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(22);
+select plan(31);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.customers'::regclass),
@@ -52,6 +52,14 @@ select ok(
 select ok(
   not has_table_privilege('authenticated', 'public.leads', 'UPDATE'),
   'authenticated callers cannot bypass the lead transition RPC'
+);
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.assign_lead(uuid,uuid,uuid)',
+    'EXECUTE'
+  ),
+  'authenticated staff can invoke the protected assignment RPC'
 );
 
 insert into auth.users (
@@ -342,6 +350,120 @@ select is(
   ),
   'STALE_STATUS',
   'a concurrent stale transition is rejected'
+);
+
+insert into auth.users (
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+values (
+  '10000000-0000-4000-8000-000000000003',
+  'authenticated',
+  'authenticated',
+  'viewer-test@example.com',
+  '',
+  now(),
+  '{}'::jsonb,
+  '{}'::jsonb,
+  now(),
+  now()
+);
+
+insert into public.profiles (id, full_name)
+values ('10000000-0000-4000-8000-000000000003', 'Database Test Viewer');
+
+insert into public.profile_roles (profile_id, role_id)
+select '10000000-0000-4000-8000-000000000003', id
+from public.roles
+where code = 'viewer';
+
+select is(
+  (
+    public.assign_lead(
+      '40000000-0000-4000-8000-000000000001',
+      null,
+      '10000000-0000-4000-8000-000000000001'
+    )->>'ok'
+  )::boolean,
+  true,
+  'an authorized assignment succeeds'
+);
+select is(
+  (
+    select assigned_profile_id
+    from public.leads
+    where id = '40000000-0000-4000-8000-000000000001'
+  ),
+  '10000000-0000-4000-8000-000000000001'::uuid,
+  'the assignment updates the lead'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.lead_activities
+    where lead_id = '40000000-0000-4000-8000-000000000001'
+      and activity_type = 'assignment_changed'
+  ),
+  1,
+  'the assignment writes its activity atomically'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.audit_events
+    where entity_id = '40000000-0000-4000-8000-000000000001'
+      and event_type = 'lead.assignment_changed'
+  ),
+  1,
+  'the assignment writes its audit event atomically'
+);
+select is(
+  (
+    public.assign_lead(
+      '40000000-0000-4000-8000-000000000001',
+      null,
+      null
+    )->>'code'
+  ),
+  'STALE_ASSIGNMENT',
+  'a concurrent stale assignment is rejected'
+);
+select is(
+  (
+    public.assign_lead(
+      '40000000-0000-4000-8000-000000000001',
+      '10000000-0000-4000-8000-000000000001',
+      '10000000-0000-4000-8000-000000000003'
+    )->>'code'
+  ),
+  'INVALID_ASSIGNEE',
+  'a lead cannot be assigned to a role that does not own leads'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.list_assignable_staff()
+    where staff_id = '10000000-0000-4000-8000-000000000001'
+  ),
+  1,
+  'the assignable staff list includes operational roles'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.list_assignable_staff()
+    where staff_id = '10000000-0000-4000-8000-000000000003'
+  ),
+  0,
+  'the assignable staff list excludes view-only roles'
 );
 
 insert into auth.users (

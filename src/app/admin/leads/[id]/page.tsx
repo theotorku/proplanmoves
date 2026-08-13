@@ -1,8 +1,9 @@
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { requireAnyRole } from "@/domains/auth/server";
-import { getAdminLeadDetail } from "@/domains/leads/admin";
-import { LeadNoteForm, LeadStatusForm } from "./lead-detail-forms";
+import { requireUserWithRoles } from "@/domains/auth/server";
+import { getAdminLeadDetail, listAssignableStaff } from "@/domains/leads/admin";
+import { hasAnyRole } from "@/domains/auth/roles";
+import { LeadAssignmentForm, LeadNoteForm, LeadStatusForm } from "./lead-detail-forms";
 
 export const dynamic = "force-dynamic";
 
@@ -11,13 +12,22 @@ type PageProps = {
 };
 
 export default async function AdminLeadDetailPage({ params }: PageProps) {
-  await requireAnyRole(["owner", "admin", "estimator", "dispatcher", "viewer"]);
+  const { roles } = await requireUserWithRoles([
+    "owner",
+    "admin",
+    "estimator",
+    "dispatcher",
+    "viewer"
+  ]);
   const { id } = await params;
   const lead = await getAdminLeadDetail(id);
 
   if (!lead) {
     notFound();
   }
+
+  const canAssign = hasAnyRole(roles, ["owner", "admin", "estimator"]);
+  const staff = canAssign ? await listAssignableStaff() : [];
 
   return (
     <main className="min-h-screen px-6 py-8">
@@ -29,6 +39,9 @@ export default async function AdminLeadDetailPage({ params }: PageProps) {
             </Link>
             <h1 className="mt-2 text-3xl font-semibold">{lead.reference}</h1>
             <p className="mt-1 text-neutral-700">{lead.customerName}</p>
+            <p className="mt-1 text-sm text-neutral-600">
+              Assigned to {lead.assignedToName ?? "nobody yet"}
+            </p>
           </div>
           <span className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm">
             {lead.status}
@@ -88,6 +101,18 @@ export default async function AdminLeadDetailPage({ params }: PageProps) {
                 <LeadStatusForm currentStatus={lead.status} leadId={lead.id} />
               </div>
             </div>
+            {canAssign ? (
+              <div className="rounded-md border border-neutral-300 bg-white p-4">
+                <h2 className="font-semibold">Ownership</h2>
+                <div className="mt-3">
+                  <LeadAssignmentForm
+                    assignedProfileId={lead.assignedProfileId}
+                    leadId={lead.id}
+                    staff={staff}
+                  />
+                </div>
+              </div>
+            ) : null}
             <div className="rounded-md border border-neutral-300 bg-white p-4">
               <h2 className="font-semibold">Notes</h2>
               <div className="mt-3">

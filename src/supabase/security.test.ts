@@ -56,4 +56,20 @@ describe("Supabase security migrations", () => {
     expect(adminLeads).toContain("create or replace function transition_lead_status");
     expect(adminLeads).toContain("create or replace function bootstrap_initial_owner");
   });
+
+  it("keeps lead assignment behind an authenticated-only definer function", () => {
+    const assignment = readMigration("0005_lead_assignment.sql");
+
+    expect(assignment).toContain("create or replace function assign_lead");
+    expect(assignment).toContain("security definer");
+    expect(assignment).toContain(
+      "revoke all on function assign_lead(uuid, uuid, uuid) from public, anon;"
+    );
+    expect(assignment).toContain(
+      "grant execute on function assign_lead(uuid, uuid, uuid) to authenticated;"
+    );
+    expect(assignment).toContain(
+      "revoke all on function list_assignable_staff() from public, anon;"
+    );
+  });
 });

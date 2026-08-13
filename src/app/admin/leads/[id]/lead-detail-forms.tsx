@@ -1,7 +1,13 @@
 "use client";
 
 import { useActionState } from "react";
-import { addLeadNoteAction, updateLeadStatusAction, type LeadActionState } from "../actions";
+import type { AssignableStaff } from "@/domains/leads/assignment";
+import {
+  addLeadNoteAction,
+  assignLeadAction,
+  updateLeadStatusAction,
+  type LeadActionState
+} from "../actions";
 
 const initialState: LeadActionState = {};
 
@@ -40,6 +46,48 @@ export function LeadStatusForm({ leadId, currentStatus }: { leadId: string; curr
       {state.message ? <p className="text-sm text-amber-700">{state.message}</p> : null}
       <button className="w-fit rounded-md bg-teal-700 px-4 py-2 font-medium text-white disabled:opacity-60" disabled={isPending} type="submit">
         {isPending ? "Updating..." : "Update status"}
+      </button>
+    </form>
+  );
+}
+
+export function LeadAssignmentForm({
+  leadId,
+  assignedProfileId,
+  staff
+}: {
+  leadId: string;
+  assignedProfileId: string | null;
+  staff: AssignableStaff[];
+}) {
+  const [state, formAction, isPending] = useActionState(assignLeadAction, initialState);
+
+  return (
+    <form action={formAction} className="grid gap-3">
+      <input name="leadId" type="hidden" value={leadId} />
+      <input name="expectedProfileId" type="hidden" value={assignedProfileId ?? ""} />
+      <label>
+        <span className="text-sm font-medium">Assigned to</span>
+        <select
+          className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2"
+          defaultValue={assignedProfileId ?? ""}
+          name="assigneeProfileId"
+        >
+          <option value="">Unassigned</option>
+          {staff.map((member) => (
+            <option key={member.profileId} value={member.profileId}>
+              {member.fullName} ({member.roles.join(", ")})
+            </option>
+          ))}
+        </select>
+      </label>
+      {state.message ? <p className="text-sm text-amber-700">{state.message}</p> : null}
+      <button
+        className="w-fit rounded-md bg-teal-700 px-4 py-2 font-medium text-white disabled:opacity-60"
+        disabled={isPending}
+        type="submit"
+      >
+        {isPending ? "Saving..." : "Save assignment"}
       </button>
     </form>
   );
