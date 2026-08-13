@@ -57,14 +57,16 @@ Rules:
 ## Public lead submission
 
 1. Public customer submits `/quote-request`.
-2. Server action validates the payload with Zod.
-3. Server action normalizes email and phone.
-4. Service-role server client calls `submit_public_lead_request(payload)`.
-5. Database function finds or creates the customer in one transaction.
-6. Database function creates origin and destination addresses.
-7. Database function creates a lead with `new` status and generated reference.
-8. Database function writes `lead.created` audit event.
-9. Page returns confirmation reference without exposing customer or lead rows.
+2. Server action discards honeypot submissions and enforces rate limits.
+3. Server action validates the payload with Zod.
+4. Server action normalizes email and phone.
+5. Service-role server client calls `submit_public_lead_request(payload)`.
+6. Database function finds or creates the customer in one transaction. A public
+   dedupe match links the lead but does not rewrite the matched customer.
+7. Database function creates origin and destination addresses.
+8. Database function creates a lead with `new` status and generated reference.
+9. Database function writes `lead.created` audit event.
+10. Page returns confirmation reference without exposing customer or lead rows.
 
 ## Lead-to-estimate
 
@@ -75,6 +77,16 @@ Rules:
 5. Store assumptions and warnings.
 6. Change lead to `estimate_pending`.
 7. Write audit events.
+
+## Admin lead qualification
+
+1. Staff open `/admin/leads` and filter by status or lead reference.
+2. Staff open a lead detail page.
+3. Staff record notes or status changes from server actions.
+4. Status changes are checked against the lead lifecycle rules.
+5. Lost or disqualified transitions require a reason.
+6. Each status change records a lead activity and audit event.
+7. Reopening terminal leads requires owner/admin role.
 
 ## Quote-to-job
 

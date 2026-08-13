@@ -40,69 +40,30 @@ export async function bootstrapInitialOwner(
   }
 
   const supabase = getSupabaseServiceClient();
-  const { count: ownerCount, error: countError } = await supabase
-    .from("profile_roles")
-    .select("roles!inner(code)", { count: "exact", head: true })
-    .eq("roles.code", "owner");
-
-  if (countError) {
-    return { ok: false, error: "INTERNAL_ERROR", message: countError.message };
-  }
-
-  if ((ownerCount ?? 0) > 0) {
-    return {
-      ok: false,
-      error: "CONFLICT",
-      message: "An owner has already been bootstrapped."
-    };
-  }
-
-  const { data: ownerRole, error: roleError } = await supabase
-    .from("roles")
-    .select("id")
-    .eq("code", "owner")
-    .single();
-
-  if (roleError || !ownerRole) {
-    return {
-      ok: false,
-      error: "INTERNAL_ERROR",
-      message: roleError?.message ?? "Owner role does not exist."
-    };
-  }
-
-  const { error: profileError } = await supabase.from("profiles").upsert(
-    {
-      id: parsed.userId,
-      full_name: parsed.fullName,
-      is_active: true
-    },
-    { onConflict: "id" }
-  );
-
-  if (profileError) {
-    return { ok: false, error: "INTERNAL_ERROR", message: profileError.message };
-  }
-
-  const { error: roleAssignError } = await supabase.from("profile_roles").upsert(
-    {
-      profile_id: parsed.userId,
-      role_id: ownerRole.id
-    },
-    { onConflict: "profile_id,role_id" }
-  );
-
-  if (roleAssignError) {
-    return { ok: false, error: "INTERNAL_ERROR", message: roleAssignError.message };
-  }
-
-  await supabase.from("audit_events").insert({
-    actor_profile_id: parsed.userId,
-    entity_type: "profile",
-    entity_id: parsed.userId,
-    event_type: "auth.owner_bootstrapped",
-    new_values: { email: parsed.email }
+  const { data, error } = await supabase.rpc("bootstrap_initial_owner", {
+    p_user_id: parsed.userId,
+    p_email: parsed.email,
+    p_full_name: parsed.fullName
   });
 
-  return { ok: true };
+  if (error) {
+    return { ok: false, error: "INTERNAL_ERROR", message: error.message };
+  }
+
+  const result = z
+    .discriminatedUnion("ok", [
+      z.object({ ok: z.literal(true) }),
+      z.object({
+        ok: z.literal(false),
+        code: z.enum(["FORBIDDEN", "CONFLICT", "INTERNAL_ERROR"]),
+        message: z.string()
+      })
+    ])
+    .parse(data);
+
+  if (!result.ok) {
+    return { ok: false, error: result.code, message: result.message };
+  }
+
+  return result;
 }

@@ -39,6 +39,9 @@ The first release supports local residential, apartment, office, labor-only, and
 - `ROADMAP.md` — 60-day delivery sequence
 - `TASKS.md` — actionable implementation backlog
 - `DEFINITION_OF_DONE.md` — release gate
+- `VISION.md` — long-term product direction
+- `COMPETITOR_ANALYSIS.md` — market comparison notes
+- `LESSONS_LEARNED.md` — implementation learnings
 
 ## Required commands
 
@@ -50,6 +53,9 @@ npm run dev
 npm run lint
 npm run typecheck
 npm run test
+npm run db:start
+npm run db:reset
+npm run test:db
 npm run test:e2e
 npm run build
 ```

@@ -59,3 +59,34 @@ export async function requireAnyRole(allowedRoles: readonly RoleCode[]) {
 
   return user;
 }
+
+export async function requireUserWithRoles(allowedRoles: readonly RoleCode[]) {
+  const supabase = await createSupabaseServerClient();
+  const {
+    data: { user }
+  } = await supabase.auth.getUser();
+
+  if (!user) {
+    redirect("/login");
+  }
+
+  const { data, error } = await supabase
+    .from("profile_roles")
+    .select("roles(code)")
+    .eq("profile_id", user.id)
+    .returns<ProfileRoleRow[]>();
+
+  if (error) {
+    throw new Error(`Unable to load profile roles: ${error.message}`);
+  }
+
+  const roles = (data ?? [])
+    .map((row) => row.roles?.code)
+    .filter((role): role is RoleCode => Boolean(role));
+
+  if (!hasAnyRole(roles, allowedRoles)) {
+    redirect("/login");
+  }
+
+  return { user, roles };
+}

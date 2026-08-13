@@ -22,18 +22,18 @@
 - [x] Create addresses and lead
 - [x] Generate reference
 - [x] Add confirmation page
-- [ ] Add rate limiting
+- [x] Add rate limiting
 
 ## Epic 3 — Admin leads
 
-- [ ] Lead table with filters
-- [ ] Lead detail page
-- [ ] Status changes
+- [x] Lead table with filters
+- [x] Lead detail page
+- [x] Status changes
 - [ ] Assignment
-- [ ] Notes
-- [ ] Contact activities
-- [ ] Lost/disqualified reasons
-- [ ] Audit timeline
+- [x] Notes
+- [x] Contact activities
+- [x] Lost/disqualified reasons
+- [x] Audit timeline
 
 ## Epic 4 — Estimation
 
@@ -75,6 +75,7 @@
 ## Epic 8 — Release hardening
 
 - [ ] E2E happy path
+- [x] Static migration security tests
 - [ ] Negative authorization tests
 - [ ] RLS verification
 - [ ] Accessibility checks

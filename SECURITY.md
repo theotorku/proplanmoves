@@ -32,6 +32,10 @@ Authorization must be enforced in:
   do not receive direct table access.
 - Public role must not select inserted customer or lead records.
 - Authenticated users receive only permissions required by role.
+- Authenticated clients cannot update leads directly; lifecycle mutations run
+  through role-checking transactional functions.
+- Public rate-limit state and its mutation function are service-role-only.
+- Initial owner bootstrap is service-role-only, serialized, and atomic.
 - Audit events are append-only to authorized server paths and read-limited.
 
 ## Sensitive data
@@ -55,8 +59,12 @@ Controls:
 
 ## Abuse prevention
 
-- Rate-limit public intake by IP/session fingerprint before public launch.
-- Add bot protection after observing abuse; preserve accessibility.
+- Rate-limit public intake through a shared PostgreSQL counter before the
+  service-role persistence path is called. Hash the platform-derived client
+  fingerprint before storage.
+- Use an accessible honeypot field on public intake to discard basic bot
+  submissions before persistence.
+- Add managed bot protection after observing abuse; preserve accessibility.
 - Detect repeated duplicate submissions.
 - Enforce request body limits.
 

@@ -31,6 +31,17 @@ export function QuoteRequestForm() {
   return (
     <form action={formAction} className="grid gap-6">
       {state.message ? <p className="rounded-md bg-amber-50 p-3 text-sm text-amber-800">{state.message}</p> : null}
+      <div className="hidden" aria-hidden="true">
+        <label>
+          Company website
+          <input
+            autoComplete="off"
+            name="companyWebsite"
+            tabIndex={-1}
+            type="text"
+          />
+        </label>
+      </div>
 
       <section className="grid gap-4 md:grid-cols-2">
         <label>

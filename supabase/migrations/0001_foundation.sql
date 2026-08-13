@@ -39,7 +39,7 @@ create table reference_counters (
   primary key (entity_type, reference_year)
 );
 
-create or replace function next_reference(entity_type text)
+create or replace function next_reference(p_entity_type text)
 returns text
 language plpgsql
 security definer
@@ -50,21 +50,21 @@ declare
   next_value integer;
   prefix text;
 begin
-  if entity_type = 'lead' then
+  if p_entity_type = 'lead' then
     prefix := 'LEAD';
-  elsif entity_type = 'estimate' then
+  elsif p_entity_type = 'estimate' then
     prefix := 'EST';
-  elsif entity_type = 'quote' then
+  elsif p_entity_type = 'quote' then
     prefix := 'QUO';
-  elsif entity_type = 'job' then
+  elsif p_entity_type = 'job' then
     prefix := 'JOB';
   else
-    raise exception 'Unsupported entity type: %', entity_type;
+    raise exception 'Unsupported entity type: %', p_entity_type;
   end if;
 
   insert into reference_counters(entity_type, reference_year, last_value)
-  values (entity_type, current_year, 1)
-  on conflict (entity_type, reference_year)
+  values (p_entity_type, current_year, 1)
+  on conflict on constraint reference_counters_pkey
   do update set last_value = reference_counters.last_value + 1
   returning last_value into next_value;
 
@@ -258,6 +258,39 @@ create table jobs (
   constraint scheduled_window_order check (arrival_window_end is null or arrival_window_start is null or arrival_window_end > arrival_window_start)
 );
 
+-- Cross-workflow identity must remain consistent. The redundant composite keys
+-- let PostgreSQL reject an estimate, quote, or job that mixes records from
+-- different customers or workflow chains.
+alter table addresses
+  add constraint addresses_id_customer_unique unique (id, customer_id);
+
+alter table leads
+  add constraint leads_id_customer_unique unique (id, customer_id),
+  add constraint lead_origin_customer_fk
+    foreign key (origin_address_id, customer_id) references addresses(id, customer_id),
+  add constraint lead_destination_customer_fk
+    foreign key (destination_address_id, customer_id) references addresses(id, customer_id);
+
+alter table estimates
+  add constraint estimates_id_lead_customer_unique unique (id, lead_id, customer_id),
+  add constraint estimate_lead_customer_fk
+    foreign key (lead_id, customer_id) references leads(id, customer_id);
+
+alter table quotes
+  add constraint quotes_id_estimate_lead_customer_unique unique (id, estimate_id, lead_id, customer_id),
+  add constraint quote_estimate_workflow_fk
+    foreign key (estimate_id, lead_id, customer_id)
+    references estimates(id, lead_id, customer_id);
+
+alter table jobs
+  add constraint job_quote_workflow_fk
+    foreign key (quote_id, estimate_id, lead_id, customer_id)
+    references quotes(id, estimate_id, lead_id, customer_id),
+  add constraint job_origin_customer_fk
+    foreign key (origin_address_id, customer_id) references addresses(id, customer_id),
+  add constraint job_destination_customer_fk
+    foreign key (destination_address_id, customer_id) references addresses(id, customer_id);
+
 create table audit_events (
   id uuid primary key default gen_random_uuid(),
   actor_profile_id uuid references profiles(id) on delete set null,
@@ -278,6 +311,30 @@ create index quotes_status_expiration_idx on quotes(status, expires_on);
 create index quotes_accepted_at_idx on quotes(accepted_at);
 create index jobs_status_scheduled_idx on jobs(status, scheduled_date);
 create index audit_entity_idx on audit_events(entity_type, entity_id, occurred_at desc);
+
+create or replace function prevent_used_pricing_rule_version_mutation()
+returns trigger
+language plpgsql
+set search_path = pg_catalog, public
+as $$
+begin
+  if exists (
+    select 1
+    from public.estimates
+    where pricing_rule_version_id = old.id
+  ) then
+    raise exception using
+      errcode = '23514',
+      message = 'Pricing rule versions used by an estimate are immutable.';
+  end if;
+
+  return case when tg_op = 'DELETE' then old else new end;
+end;
+$$;
+
+create trigger pricing_rule_versions_immutable_when_used
+before update or delete on pricing_rule_versions
+for each row execute function prevent_used_pricing_rule_version_mutation();
 
 create or replace function has_role(required_role text)
 returns boolean
@@ -360,3 +417,11 @@ create policy job_dispatch_write on jobs for all to authenticated using (has_any
 create policy audit_server_insert on audit_events for insert to authenticated with check (has_any_role(array['owner', 'admin', 'estimator', 'dispatcher']));
 
 revoke all on reference_counters from anon, authenticated;
+
+revoke all on function next_reference(text) from public, anon;
+grant execute on function next_reference(text) to authenticated;
+revoke all on function has_role(text) from public, anon;
+grant execute on function has_role(text) to authenticated;
+revoke all on function has_any_role(text[]) from public, anon;
+grant execute on function has_any_role(text[]) to authenticated;
+revoke all on function prevent_used_pricing_rule_version_mutation() from public, anon, authenticated;

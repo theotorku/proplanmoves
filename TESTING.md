@@ -19,6 +19,16 @@
 
 Use a disposable Supabase test environment or local Supabase instance.
 
+Database tests are pgTAP files under `supabase/tests/database`. Run them against
+the local stack:
+
+```bash
+npm run db:start
+npm run db:reset
+npm run test:db
+npm run db:stop
+```
+
 Required scenarios:
 - public lead submission
 - duplicate customer handling
@@ -61,6 +71,9 @@ Every pull request/build must pass:
 npm run lint
 npm run typecheck
 npm run test
+npm run db:start
+npm run db:reset
+npm run test:db
 npm run build
 ```
 

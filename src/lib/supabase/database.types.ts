@@ -9,6 +9,38 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      addresses: {
+        Row: {
+          id: string;
+          customer_id: string | null;
+          line1: string;
+          line2: string | null;
+          city: string;
+          state: string;
+          postal_code: string;
+          access_notes: string | null;
+          latitude: number | null;
+          longitude: number | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          customer_id?: string | null;
+          line1: string;
+          line2?: string | null;
+          city: string;
+          state: string;
+          postal_code: string;
+          access_notes?: string | null;
+          latitude?: number | null;
+          longitude?: number | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["addresses"]["Insert"]>;
+        Relationships: [];
+      };
       audit_events: {
         Row: {
           id: string;
@@ -123,6 +155,48 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["leads"]["Insert"]>;
         Relationships: [];
       };
+      lead_activities: {
+        Row: {
+          id: string;
+          lead_id: string;
+          activity_type: string;
+          outcome: string | null;
+          occurred_at: string;
+          created_by: string | null;
+          metadata: Json;
+        };
+        Insert: {
+          id?: string;
+          lead_id: string;
+          activity_type: string;
+          outcome?: string | null;
+          occurred_at?: string;
+          created_by?: string | null;
+          metadata?: Json;
+        };
+        Update: Partial<Database["public"]["Tables"]["lead_activities"]["Insert"]>;
+        Relationships: [];
+      };
+      lead_notes: {
+        Row: {
+          id: string;
+          lead_id: string;
+          author_id: string | null;
+          body: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          lead_id: string;
+          author_id?: string | null;
+          body: string;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["lead_notes"]["Insert"]>;
+        Relationships: [];
+      };
       profile_roles: {
         Row: {
           profile_id: string;
@@ -174,8 +248,40 @@ export type Database = {
     };
     Views: Record<string, never>;
     Functions: {
+      add_lead_note_with_activity: {
+        Args: {
+          p_lead_id: string;
+          p_body: string;
+        };
+        Returns: Json;
+      };
+      bootstrap_initial_owner: {
+        Args: {
+          p_user_id: string;
+          p_email: string;
+          p_full_name: string;
+        };
+        Returns: Json;
+      };
+      consume_public_rate_limit: {
+        Args: {
+          p_bucket_key: string;
+          p_limit: number;
+          p_window_seconds: number;
+        };
+        Returns: Json;
+      };
       submit_public_lead_request: {
         Args: { payload: Json };
+        Returns: Json;
+      };
+      transition_lead_status: {
+        Args: {
+          p_lead_id: string;
+          p_expected_status: string;
+          p_next_status: string;
+          p_reason?: string | null;
+        };
         Returns: Json;
       };
     };

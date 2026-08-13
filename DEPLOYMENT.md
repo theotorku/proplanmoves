@@ -11,12 +11,14 @@ Never point preview deployments at the production database.
 ## Release process
 
 1. Merge only after CI passes.
-2. Apply database migrations to target environment.
-3. Verify migration results and RLS.
-4. Deploy application.
-5. Run smoke test.
-6. Verify logs and error rate.
-7. Record release notes and known limitations.
+2. Run `npm run db:reset` and `npm run test:db` against the disposable local stack.
+3. Review the exact ordered files under `supabase/migrations`.
+4. Apply database migrations to the selected target environment.
+5. Run Supabase database advisors and verify migration history and RLS.
+6. Deploy application.
+7. Run smoke test.
+8. Verify logs and error rate.
+9. Record release notes and known limitations.
 
 ## Production smoke test
 

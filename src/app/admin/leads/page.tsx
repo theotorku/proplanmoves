@@ -1,12 +1,21 @@
 import Link from "next/link";
 import { requireAnyRole } from "@/domains/auth/server";
-import { listAdminLeads } from "@/domains/leads/admin";
+import { leadListFiltersSchema, listAdminLeads } from "@/domains/leads/admin";
 
 export const dynamic = "force-dynamic";
 
-export default async function AdminLeadsPage() {
+type PageProps = {
+  searchParams: Promise<Record<string, string | string[] | undefined>>;
+};
+
+export default async function AdminLeadsPage({ searchParams }: PageProps) {
   await requireAnyRole(["owner", "admin", "estimator", "dispatcher", "viewer"]);
-  const leads = await listAdminLeads();
+  const query = await searchParams;
+  const filters = leadListFiltersSchema.parse({
+    status: typeof query.status === "string" ? query.status : "all",
+    search: typeof query.search === "string" ? query.search : undefined
+  });
+  const leads = await listAdminLeads(filters);
 
   return (
     <main className="min-h-screen px-6 py-8">
@@ -22,6 +31,31 @@ export default async function AdminLeadsPage() {
             Dashboard
           </Link>
         </div>
+
+        <form className="mb-4 grid gap-3 rounded-md border border-neutral-300 bg-white p-4 md:grid-cols-[180px_1fr_auto]">
+          <label>
+            <span className="text-sm font-medium">Status</span>
+            <select className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2" defaultValue={filters.status} name="status">
+              <option value="all">All</option>
+              <option value="new">New</option>
+              <option value="contacting">Contacting</option>
+              <option value="qualified">Qualified</option>
+              <option value="estimate_pending">Estimate pending</option>
+              <option value="quote_pending">Quote pending</option>
+              <option value="won">Won</option>
+              <option value="unresponsive">Unresponsive</option>
+              <option value="disqualified">Disqualified</option>
+              <option value="lost">Lost</option>
+            </select>
+          </label>
+          <label>
+            <span className="text-sm font-medium">Reference search</span>
+            <input className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2" defaultValue={filters.search ?? ""} name="search" />
+          </label>
+          <button className="self-end rounded-md bg-teal-700 px-4 py-2 font-medium text-white" type="submit">
+            Filter
+          </button>
+        </form>
 
         <div className="overflow-hidden rounded-md border border-neutral-300 bg-white">
           <table className="w-full border-collapse text-left text-sm">
@@ -45,7 +79,11 @@ export default async function AdminLeadsPage() {
               ) : (
                 leads.map((lead) => (
                   <tr className="border-t border-neutral-200" key={lead.id}>
-                    <td className="px-4 py-3 font-mono">{lead.reference}</td>
+                    <td className="px-4 py-3 font-mono">
+                      <Link className="text-teal-700" href={`/admin/leads/${lead.id}`}>
+                        {lead.reference}
+                      </Link>
+                    </td>
                     <td className="px-4 py-3">
                       <div className="font-medium">{lead.customerName}</div>
                       <div className="text-neutral-600">{lead.customerEmail ?? lead.customerPhone}</div>
