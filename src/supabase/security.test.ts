@@ -72,4 +72,22 @@ describe("Supabase security migrations", () => {
       "revoke all on function list_assignable_staff() from public, anon;"
     );
   });
+
+  it("keeps estimate writes behind transactional functions", () => {
+    const estimates = readMigration("0006_estimates.sql");
+    const review = readMigration("0007_estimate_review.sql");
+
+    expect(estimates).toContain(
+      "revoke insert, update on estimates, estimate_line_items from authenticated;"
+    );
+    expect(estimates).toContain("create or replace function create_estimate_from_calculation");
+    expect(estimates).toContain(
+      "revoke all on function create_estimate_from_calculation(uuid, uuid, jsonb)"
+    );
+    expect(review).toContain("create or replace function review_estimate");
+    expect(review).toContain("create or replace function update_estimate_line_item");
+    expect(review).toContain(
+      "revoke all on function update_estimate_line_item(uuid, numeric, integer)"
+    );
+  });
 });

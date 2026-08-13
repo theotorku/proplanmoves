@@ -197,6 +197,124 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["lead_notes"]["Insert"]>;
         Relationships: [];
       };
+      pricing_rules: {
+        Row: {
+          id: string;
+          name: string;
+          is_active: boolean;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          is_active?: boolean;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["pricing_rules"]["Insert"]>;
+        Relationships: [];
+      };
+      pricing_rule_versions: {
+        Row: {
+          id: string;
+          pricing_rule_id: string;
+          version_number: number;
+          effective_from: string;
+          effective_to: string | null;
+          rules_json: Json;
+          created_by: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          pricing_rule_id: string;
+          version_number: number;
+          effective_from?: string;
+          effective_to?: string | null;
+          rules_json: Json;
+          created_by?: string | null;
+          created_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["pricing_rule_versions"]["Insert"]>;
+        Relationships: [];
+      };
+      estimates: {
+        Row: {
+          id: string;
+          reference: string;
+          lead_id: string;
+          customer_id: string;
+          pricing_rule_version_id: string;
+          status: string;
+          suggested_crew_size: number;
+          suggested_truck_count: number;
+          estimated_minutes: number;
+          travel_allowance_minutes: number;
+          low_total_cents: number;
+          high_total_cents: number;
+          currency: string;
+          confidence: string;
+          assumptions: Json;
+          warnings: Json;
+          reviewed_by: string | null;
+          reviewed_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          reference?: string;
+          lead_id: string;
+          customer_id: string;
+          pricing_rule_version_id: string;
+          status?: string;
+          suggested_crew_size: number;
+          suggested_truck_count: number;
+          estimated_minutes: number;
+          travel_allowance_minutes?: number;
+          low_total_cents: number;
+          high_total_cents: number;
+          currency?: string;
+          confidence: string;
+          assumptions?: Json;
+          warnings?: Json;
+          reviewed_by?: string | null;
+          reviewed_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["estimates"]["Insert"]>;
+        Relationships: [];
+      };
+      estimate_line_items: {
+        Row: {
+          id: string;
+          estimate_id: string;
+          code: string;
+          description: string;
+          quantity: number;
+          unit: string;
+          unit_amount_cents: number;
+          total_amount_cents: number;
+          category: string;
+          sort_order: number;
+        };
+        Insert: {
+          id?: string;
+          estimate_id: string;
+          code: string;
+          description: string;
+          quantity: number;
+          unit: string;
+          unit_amount_cents: number;
+          total_amount_cents: number;
+          category: string;
+          sort_order?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["estimate_line_items"]["Insert"]>;
+        Relationships: [];
+      };
       profile_roles: {
         Row: {
           profile_id: string;
@@ -271,6 +389,14 @@ export type Database = {
         };
         Returns: Json;
       };
+      create_estimate_from_calculation: {
+        Args: {
+          p_lead_id: string;
+          p_pricing_rule_version_id: string;
+          p_calculation: Json;
+        };
+        Returns: Json;
+      };
       consume_public_rate_limit: {
         Args: {
           p_bucket_key: string;
@@ -286,6 +412,23 @@ export type Database = {
           staff_name: string;
           staff_roles: string[];
         }[];
+      };
+      review_estimate: {
+        Args: {
+          p_estimate_id: string;
+          p_expected_status: string;
+          p_next_status: string;
+          p_reason?: string | null;
+        };
+        Returns: Json;
+      };
+      update_estimate_line_item: {
+        Args: {
+          p_line_item_id: string;
+          p_quantity: number;
+          p_unit_amount_cents: number;
+        };
+        Returns: Json;
       };
       submit_public_lead_request: {
         Args: { payload: Json };

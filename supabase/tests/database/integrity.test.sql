@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(38);
+select plan(56);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.customers'::regclass),
@@ -593,6 +593,294 @@ select is(
   ),
   'FORBIDDEN',
   'an estimator cannot assign a lead to another operator'
+);
+
+-- Estimate generation and review run as the estimator created above, on a
+-- dedicated lead so the pricing-immutability fixture above cannot interfere.
+select ok(
+  not has_table_privilege('authenticated', 'public.estimates', 'INSERT'),
+  'authenticated callers cannot insert estimates directly'
+);
+
+insert into public.leads (
+  id,
+  customer_id,
+  move_type,
+  origin_address_id
+)
+values (
+  '40000000-0000-4000-8000-000000000003',
+  '20000000-0000-4000-8000-000000000001',
+  'residential',
+  '30000000-0000-4000-8000-000000000001'
+);
+
+select public.transition_lead_status(
+  '40000000-0000-4000-8000-000000000003',
+  'new',
+  'qualified',
+  null
+);
+
+select is(
+  (
+    public.create_estimate_from_calculation(
+      '40000000-0000-4000-8000-000000000003',
+      (select id from public.pricing_rule_versions order by version_number limit 1),
+      '{
+        "crewSize": 3,
+        "truckCount": 1,
+        "estimatedMinutes": 240,
+        "travelAllowanceMinutes": 30,
+        "lowTotalCents": 100000,
+        "highTotalCents": 115000,
+        "confidence": "high",
+        "assumptions": [],
+        "warnings": ["Storage requires a warehouse hold."],
+        "lineItems": [
+          {"code":"moving_labor","description":"Moving labor","quantity":4,"unit":"hour","unitAmountCents":21900,"totalAmountCents":87600,"category":"labor","sortOrder":0},
+          {"code":"truck","description":"Truck fee","quantity":1,"unit":"truck","unitAmountCents":7500,"totalAmountCents":7500,"category":"transport","sortOrder":1},
+          {"code":"travel","description":"Travel","quantity":1,"unit":"job","unitAmountCents":4900,"totalAmountCents":4900,"category":"transport","sortOrder":2}
+        ]
+      }'::jsonb
+    )->>'ok'
+  )::boolean,
+  true,
+  'an estimator can generate an estimate for a qualified lead'
+);
+select is(
+  (
+    select status::text
+    from public.leads
+    where id = '40000000-0000-4000-8000-000000000003'
+  ),
+  'estimate_pending',
+  'generating an estimate moves the lead to estimate_pending'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.estimate_line_items li
+    join public.estimates e on e.id = li.estimate_id
+    where e.lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  3,
+  'the calculation line items are persisted'
+);
+select is(
+  (
+    select sum(li.total_amount_cents)::integer
+    from public.estimate_line_items li
+    join public.estimates e on e.id = li.estimate_id
+    where e.lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  (
+    select low_total_cents
+    from public.estimates
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  'the stored total is reproducible from the stored line items'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.audit_events
+    where event_type = 'estimate.created'
+      and entity_id = (
+        select id from public.estimates
+        where lead_id = '40000000-0000-4000-8000-000000000003'
+      )
+  ),
+  1,
+  'generating an estimate writes its audit event'
+);
+
+select is(
+  (
+    public.update_estimate_line_item(
+      (
+        select li.id
+        from public.estimate_line_items li
+        join public.estimates e on e.id = li.estimate_id
+        where e.lead_id = '40000000-0000-4000-8000-000000000003'
+          and li.code = 'truck'
+      ),
+      2,
+      7500
+    )->>'ok'
+  )::boolean,
+  true,
+  'an estimator can override a calculated line item'
+);
+select is(
+  (
+    select low_total_cents
+    from public.estimates
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  107500,
+  'the estimate total is recomputed from its line items'
+);
+select is(
+  (
+    select high_total_cents
+    from public.estimates
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  123625,
+  'the uncertainty spread is preserved across an override'
+);
+
+select is(
+  (
+    public.review_estimate(
+      (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'generated',
+      'under_review',
+      null
+    )->>'ok'
+  )::boolean,
+  true,
+  'an estimator can submit an estimate for review'
+);
+select is(
+  (
+    public.review_estimate(
+      (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'under_review',
+      'approved',
+      null
+    )->>'code'
+  ),
+  'FORBIDDEN',
+  'an estimator cannot approve an estimate'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000001',
+  true
+);
+
+select is(
+  (
+    public.review_estimate(
+      (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'under_review',
+      'approved',
+      null
+    )->>'ok'
+  )::boolean,
+  true,
+  'an admin can approve an estimate under review'
+);
+select is(
+  (
+    select status::text || ':' || (reviewed_by is not null)::text
+    from public.estimates
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  'approved:true',
+  'approval records the reviewer'
+);
+select is(
+  (
+    public.update_estimate_line_item(
+      (
+        select li.id
+        from public.estimate_line_items li
+        join public.estimates e on e.id = li.estimate_id
+        where e.lead_id = '40000000-0000-4000-8000-000000000003'
+          and li.code = 'truck'
+      ),
+      3,
+      7500
+    )->>'code'
+  ),
+  'ESTIMATE_CLOSED',
+  'an approved estimate cannot be edited'
+);
+
+insert into public.leads (
+  id,
+  customer_id,
+  move_type,
+  origin_address_id
+)
+values (
+  '40000000-0000-4000-8000-000000000002',
+  '20000000-0000-4000-8000-000000000001',
+  'residential',
+  '30000000-0000-4000-8000-000000000001'
+);
+
+select is(
+  (
+    public.create_estimate_from_calculation(
+      '40000000-0000-4000-8000-000000000002',
+      (select id from public.pricing_rule_versions order by version_number limit 1),
+      '{
+        "crewSize": 2,
+        "truckCount": 1,
+        "estimatedMinutes": 180,
+        "lowTotalCents": 50000,
+        "highTotalCents": 60000,
+        "confidence": "medium",
+        "lineItems": [
+          {"code":"moving_labor","description":"Moving labor","quantity":3,"unit":"hour","unitAmountCents":15900,"totalAmountCents":47700,"category":"labor","sortOrder":0}
+        ]
+      }'::jsonb
+    )->>'code'
+  ),
+  'INVALID_LEAD_STATUS',
+  'an unqualified lead cannot be estimated'
+);
+
+select public.transition_lead_status(
+  '40000000-0000-4000-8000-000000000002',
+  'new',
+  'qualified',
+  null
+);
+
+select is(
+  (
+    public.create_estimate_from_calculation(
+      '40000000-0000-4000-8000-000000000002',
+      (select id from public.pricing_rule_versions order by version_number limit 1),
+      '{
+        "crewSize": 2,
+        "truckCount": 1,
+        "estimatedMinutes": 180,
+        "lowTotalCents": 50000,
+        "highTotalCents": 60000,
+        "confidence": "medium",
+        "lineItems": [
+          {"code":"moving_labor","description":"Moving labor","quantity":3,"unit":"hour","unitAmountCents":15900,"totalAmountCents":47700,"category":"labor","sortOrder":0}
+        ]
+      }'::jsonb
+    )->>'code'
+  ),
+  'TOTAL_MISMATCH',
+  'an estimate whose line items do not add up is rejected'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.estimates
+    where lead_id = '40000000-0000-4000-8000-000000000002'
+  ),
+  0,
+  'a rejected calculation writes no estimate'
+);
+select is(
+  (
+    select status::text
+    from public.leads
+    where id = '40000000-0000-4000-8000-000000000002'
+  ),
+  'qualified',
+  'a rejected calculation leaves the lead status alone'
 );
 
 insert into auth.users (

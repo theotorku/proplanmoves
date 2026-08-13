@@ -87,3 +87,15 @@
 **Decision:** `pricing_rule_versions.rules_json` is parsed against a strict Zod schema before any calculation, and the seeded active version is asserted against the same schema in tests.  
 **Reason:** Versions become immutable once an estimate references them (ADR-012), so a malformed or partial document must be rejected before it can be used and frozen.  
 **Consequence:** Adding a pricing input means changing the schema, the seed, and the calculation together. The calculation service reads no clock and no environment, so the same lead and version always produce the same estimate.
+
+## ADR-016 — Estimates are priced in the application and verified in the database
+
+**Decision:** TypeScript computes the estimate; `create_estimate_from_calculation` stores it after re-checking the parts that must hold — the lead is qualified, the pricing version is still current, and the line items add up to the stored total.  
+**Reason:** Pricing logic belongs in a testable domain service (ADR-004), but the RPC is reachable by any authenticated staff member, so the database cannot assume the payload was computed honestly.  
+**Consequence:** A calculation the database refuses writes nothing at all — no estimate, no line items, no lead transition. The estimate total is always reproducible from the stored line items, including after an operator override.
+
+## ADR-017 — Estimate approval is a separate pair of hands
+
+**Decision:** An estimator prepares an estimate and submits it for review; only an owner or admin approves or rejects it, and a rejection needs a reason. Approved and rejected estimates are frozen — a new estimate supersedes them.  
+**Reason:** The price is the commercial commitment, so the person who produced it should not be the only person who accepts it.  
+**Consequence:** Overrides are allowed while an estimate is draft, generated, or under review, and each one is audited with its previous and new amounts. Reworking a rejected estimate means resubmitting it for review.

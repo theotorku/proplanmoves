@@ -26,6 +26,11 @@ Rules:
 - Only approved estimates can produce a normal quote.
 - Manual quote creation without approval requires owner/admin override and reason.
 - Recalculation creates a new estimate revision or records the exact changed values.
+- Owner, admin, and estimator can prepare and submit; only owner and admin can
+  approve or reject, and a rejection requires a reason.
+- A rejected estimate can be reworked and resubmitted. An approved one is final.
+- Line-item overrides are allowed until the review decision, and each one
+  recomputes the estimate total from the stored lines.
 
 ## Quote lifecycle
 
@@ -75,10 +80,14 @@ Rules:
 3. Compute the recommendation deterministically from the lead facts and that
    version: crew, trucks, billable minutes, line items, range, confidence,
    assumptions, and warnings.
-4. Store estimate and line items.
+4. Store estimate and line items in one transaction, re-checking in the
+   database that the lead is qualified, the pricing version is still current,
+   and the line items add up to the stored total.
 5. Store assumptions and warnings.
 6. Change lead to `estimate_pending`.
 7. Write audit events.
+8. A refused calculation writes nothing: no estimate, no line items, and no
+   lead transition.
 
 ## Admin lead qualification
 

@@ -42,8 +42,9 @@
 - [x] Crew/truck/hour recommendations
 - [x] Surcharges and minimums
 - [x] Confidence, assumptions, warnings
-- [ ] Estimate editor and review
-- [ ] Estimate persistence against a pricing rule version
+- [x] Estimate editor and review
+- [x] Estimate persistence against a pricing rule version
+- [ ] Add and remove estimate line items (overrides are amount-only today)
 - [x] Calculation test matrix
 
 ## Epic 5 — Quotes

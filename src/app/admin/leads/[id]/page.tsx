@@ -3,6 +3,8 @@ import { notFound } from "next/navigation";
 import { requireUserWithRoles } from "@/domains/auth/server";
 import { getAdminLeadDetail, listAssignableStaff } from "@/domains/leads/admin";
 import { hasAnyRole } from "@/domains/auth/roles";
+import { getLatestEstimateForLead } from "@/domains/estimation/service";
+import { EstimatePanel } from "./estimate-panel";
 import { LeadAssignmentForm, LeadNoteForm, LeadStatusForm } from "./lead-detail-forms";
 
 export const dynamic = "force-dynamic";
@@ -27,7 +29,12 @@ export default async function AdminLeadDetailPage({ params }: PageProps) {
   }
 
   const canAssign = hasAnyRole(roles, ["owner", "admin", "estimator"]);
-  const staff = canAssign ? await listAssignableStaff() : [];
+  const canPrepareEstimate = hasAnyRole(roles, ["owner", "admin", "estimator"]);
+  const canSeeEstimate = hasAnyRole(roles, ["owner", "admin", "estimator", "viewer"]);
+  const [staff, estimate] = await Promise.all([
+    canAssign ? listAssignableStaff() : [],
+    canSeeEstimate ? getLatestEstimateForLead(lead.id) : null
+  ]);
 
   return (
     <main className="min-h-screen px-6 py-8">
@@ -67,6 +74,16 @@ export default async function AdminLeadDetailPage({ params }: PageProps) {
               <AddressPanel title="Origin" address={lead.originAddress} />
               <AddressPanel title="Destination" address={lead.destinationAddress} />
             </div>
+
+            {canSeeEstimate ? (
+              <EstimatePanel
+                canApprove={hasAnyRole(roles, ["owner", "admin"])}
+                canPrepare={canPrepareEstimate}
+                estimate={estimate}
+                leadId={lead.id}
+                leadStatus={lead.status}
+              />
+            ) : null}
 
             <div className="rounded-md border border-neutral-300 bg-white p-4">
               <h2 className="font-semibold">Timeline</h2>
