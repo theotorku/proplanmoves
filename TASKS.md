@@ -49,13 +49,14 @@
 
 ## Epic 5 — Quotes
 
-- [ ] Quote conversion service
-- [ ] Line-item editor
-- [ ] Totals validation
-- [ ] Printable quote
-- [ ] Status transitions
-- [ ] Acceptance/rejection recording
-- [ ] Expiration handling
+- [x] Quote conversion service
+- [x] Line-item editor
+- [x] Totals validation
+- [x] Printable quote
+- [x] Status transitions
+- [x] Acceptance/rejection recording
+- [x] Expiration handling
+- [ ] Scheduled sweep to expire overdue quotes without an operator
 
 ## Epic 6 — Jobs
 

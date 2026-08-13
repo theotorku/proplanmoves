@@ -317,6 +317,90 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["estimate_line_items"]["Insert"]>;
         Relationships: [];
       };
+      quotes: {
+        Row: {
+          id: string;
+          reference: string;
+          estimate_id: string;
+          lead_id: string;
+          customer_id: string;
+          status: string;
+          subtotal_cents: number;
+          discount_cents: number;
+          tax_cents: number;
+          total_cents: number;
+          deposit_cents: number;
+          currency: string;
+          expires_on: string | null;
+          terms_version: string;
+          customer_notes: string | null;
+          internal_notes: string | null;
+          decision_notes: string | null;
+          sent_at: string | null;
+          viewed_at: string | null;
+          accepted_at: string | null;
+          rejected_at: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          reference?: string;
+          estimate_id: string;
+          lead_id: string;
+          customer_id: string;
+          status?: string;
+          subtotal_cents: number;
+          discount_cents?: number;
+          tax_cents?: number;
+          total_cents: number;
+          deposit_cents?: number;
+          currency?: string;
+          expires_on?: string | null;
+          terms_version: string;
+          customer_notes?: string | null;
+          internal_notes?: string | null;
+          decision_notes?: string | null;
+          sent_at?: string | null;
+          viewed_at?: string | null;
+          accepted_at?: string | null;
+          rejected_at?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["quotes"]["Insert"]>;
+        Relationships: [];
+      };
+      quote_line_items: {
+        Row: {
+          id: string;
+          quote_id: string;
+          source_estimate_line_item_id: string | null;
+          code: string;
+          description: string;
+          quantity: number;
+          unit: string;
+          unit_amount_cents: number;
+          total_amount_cents: number;
+          category: string;
+          sort_order: number;
+        };
+        Insert: {
+          id?: string;
+          quote_id: string;
+          source_estimate_line_item_id?: string | null;
+          code: string;
+          description: string;
+          quantity: number;
+          unit: string;
+          unit_amount_cents: number;
+          total_amount_cents: number;
+          category: string;
+          sort_order?: number;
+        };
+        Update: Partial<Database["public"]["Tables"]["quote_line_items"]["Insert"]>;
+        Relationships: [];
+      };
       profile_roles: {
         Row: {
           profile_id: string;
@@ -415,6 +499,42 @@ export type Database = {
           staff_name: string;
           staff_roles: string[];
         }[];
+      };
+      create_quote_from_estimate: {
+        Args: {
+          p_estimate_id: string;
+          p_expires_on?: string | null;
+          p_terms_version?: string;
+        };
+        Returns: Json;
+      };
+      update_quote_line_item: {
+        Args: {
+          p_line_item_id: string;
+          p_quantity: number;
+          p_unit_amount_cents: number;
+        };
+        Returns: Json;
+      };
+      update_quote_terms: {
+        Args: {
+          p_quote_id: string;
+          p_discount_cents: number;
+          p_tax_cents: number;
+          p_deposit_cents: number;
+          p_expires_on: string | null;
+          p_customer_notes?: string | null;
+        };
+        Returns: Json;
+      };
+      transition_quote_status: {
+        Args: {
+          p_quote_id: string;
+          p_expected_status: string;
+          p_next_status: string;
+          p_reason?: string | null;
+        };
+        Returns: Json;
       };
       review_estimate: {
         Args: {

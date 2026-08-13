@@ -44,8 +44,14 @@ draft → ready → sent → viewed → accepted
 Rules:
 - Only `ready` can become `sent`.
 - Only `sent` or `viewed` can become `accepted` or `rejected`.
-- Expiration is date-driven but must be recorded explicitly.
-- Accepted quotes cannot be cancelled without owner/admin override.
+- Expiration is date-driven but must be recorded explicitly: the transition is
+  refused until the quote is actually past its valid-until date.
+- Accepted quotes cannot be cancelled without owner/admin override and a reason.
+- A quote is editable while `draft` or `ready`. Once sent, its numbers are what
+  the customer is looking at, so changes mean issuing a new quote.
+- Recording a rejection requires a reason. The lead stays open so it can be
+  re-quoted; losing it is a separate decision.
+- An estimate can have only one live quote at a time.
 
 ## Job lifecycle
 
@@ -108,6 +114,15 @@ Rules:
    rejected as stale rather than overwritten.
 5. The assignee must be active and hold an operational role.
 6. Each assignment change records a lead activity and audit event.
+
+## Estimate-to-quote
+
+1. Verify the estimate is approved and has no live quote.
+2. Copy its line items onto a new draft quote; the caller supplies no amounts.
+3. Derive the subtotal and total from the copied lines.
+4. Default the valid-until date to 14 days out.
+5. Change lead to `quote_pending`.
+6. Write quote activity and audit events.
 
 ## Quote-to-job
 

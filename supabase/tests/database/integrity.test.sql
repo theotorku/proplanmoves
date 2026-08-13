@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(63);
+select plan(89);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.customers'::regclass),
@@ -928,6 +928,7 @@ select is(
   'FORBIDDEN',
   'a view-only profile cannot be recorded as the author of an estimate'
 );
+
 select is(
   (
     select count(*)::integer
@@ -945,6 +946,340 @@ select is(
   ),
   'qualified',
   'a rejected calculation leaves the lead status alone'
+);
+
+-- Quote conversion and lifecycle, running as the admin from here.
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.create_quote_from_estimate(uuid,date,text)',
+    'EXECUTE'
+  ),
+  'staff can convert an approved estimate into a quote'
+);
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.recalculate_quote_totals(uuid)',
+    'EXECUTE'
+  ),
+  'quote totals cannot be recomputed outside the quote functions'
+);
+
+select is(
+  (
+    public.create_quote_from_estimate(
+      (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000003'),
+      null,
+      'terms-v1'
+    )->>'ok'
+  )::boolean,
+  true,
+  'an approved estimate converts to a quote'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.quote_line_items qli
+    join public.quotes q on q.id = qli.quote_id
+    where q.lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  3,
+  'the estimate line items are copied onto the quote'
+);
+select is(
+  (
+    select subtotal_cents
+    from public.quotes
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  107500,
+  'the quote subtotal is derived from the copied line items'
+);
+select is(
+  (
+    select status::text
+    from public.leads
+    where id = '40000000-0000-4000-8000-000000000003'
+  ),
+  'quote_pending',
+  'creating a quote moves the lead to quote_pending'
+);
+select is(
+  (
+    public.create_quote_from_estimate(
+      (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000003'),
+      null,
+      'terms-v1'
+    )->>'code'
+  ),
+  'QUOTE_EXISTS',
+  'an estimate cannot have two live quotes'
+);
+
+select public.create_estimate_from_calculation(
+  '10000000-0000-4000-8000-000000000001',
+  '40000000-0000-4000-8000-000000000002',
+  (select id from public.pricing_rule_versions order by version_number limit 1),
+  '{
+    "crewSize": 2,
+    "truckCount": 1,
+    "estimatedMinutes": 180,
+    "lowTotalCents": 47700,
+    "highTotalCents": 60000,
+    "confidence": "medium",
+    "lineItems": [
+      {"code":"moving_labor","description":"Moving labor","quantity":3,"unit":"hour","unitAmountCents":15900,"totalAmountCents":47700,"category":"labor","sortOrder":0}
+    ]
+  }'::jsonb
+);
+
+select is(
+  (
+    public.create_quote_from_estimate(
+      (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000002'),
+      null,
+      'terms-v1'
+    )->>'code'
+  ),
+  'ESTIMATE_NOT_APPROVED',
+  'an unapproved estimate cannot become a quote'
+);
+
+select is(
+  (
+    public.update_quote_line_item(
+      (
+        select qli.id
+        from public.quote_line_items qli
+        join public.quotes q on q.id = qli.quote_id
+        where q.lead_id = '40000000-0000-4000-8000-000000000003'
+          and qli.code = 'truck'
+      ),
+      1,
+      7500
+    )->'totals'->>'subtotalCents'
+  )::integer,
+  100000,
+  'editing a quote line recomputes the quote subtotal'
+);
+select is(
+  (
+    public.update_quote_terms(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      200000,
+      0,
+      0,
+      null,
+      null
+    )->>'code'
+  ),
+  'DISCOUNT_TOO_LARGE',
+  'a discount cannot exceed the subtotal'
+);
+select is(
+  (
+    public.update_quote_terms(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      0,
+      0,
+      200000,
+      null,
+      null
+    )->>'code'
+  ),
+  'DEPOSIT_TOO_LARGE',
+  'a deposit cannot exceed the total'
+);
+select is(
+  (
+    public.update_quote_terms(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      5000,
+      2500,
+      10000,
+      (current_date + 14),
+      'Crew arrives between 8 and 10am.'
+    )->>'totalCents'
+  )::integer,
+  97500,
+  'quote terms recompute the total as subtotal minus discount plus tax'
+);
+
+select is(
+  (
+    public.transition_quote_status(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'draft',
+      'sent',
+      null
+    )->>'code'
+  ),
+  'INVALID_TRANSITION',
+  'only a ready quote can be sent'
+);
+select is(
+  (
+    public.transition_quote_status(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'draft',
+      'ready',
+      null
+    )->>'ok'
+  )::boolean,
+  true,
+  'a draft quote can be marked ready'
+);
+select is(
+  (
+    public.transition_quote_status(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'ready',
+      'sent',
+      null
+    )->>'ok'
+  )::boolean,
+  true,
+  'a ready quote can be sent'
+);
+select isnt(
+  (
+    select sent_at
+    from public.quotes
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  null,
+  'sending a quote records when it went out'
+);
+select is(
+  (
+    public.update_quote_line_item(
+      (
+        select qli.id
+        from public.quote_line_items qli
+        join public.quotes q on q.id = qli.quote_id
+        where q.lead_id = '40000000-0000-4000-8000-000000000003'
+          and qli.code = 'truck'
+      ),
+      5,
+      7500
+    )->>'code'
+  ),
+  'QUOTE_LOCKED',
+  'a sent quote cannot be edited underneath the customer'
+);
+select is(
+  (
+    public.transition_quote_status(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'sent',
+      'expired',
+      null
+    )->>'code'
+  ),
+  'NOT_EXPIRED',
+  'a quote cannot be expired before its date'
+);
+select is(
+  (
+    public.transition_quote_status(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'sent',
+      'rejected',
+      null
+    )->>'code'
+  ),
+  'REASON_REQUIRED',
+  'recording a rejection requires a reason'
+);
+select is(
+  (
+    public.transition_quote_status(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'sent',
+      'accepted',
+      null
+    )->>'ok'
+  )::boolean,
+  true,
+  'a sent quote can be accepted'
+);
+select isnt(
+  (
+    select accepted_at
+    from public.quotes
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  null,
+  'acceptance is timestamped'
+);
+select is(
+  (
+    select status::text
+    from public.leads
+    where id = '40000000-0000-4000-8000-000000000003'
+  ),
+  'quote_pending',
+  'acceptance leaves the lead for the job conversion to close'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000004',
+  true
+);
+
+select is(
+  (
+    public.transition_quote_status(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'accepted',
+      'cancelled',
+      'Customer changed their mind'
+    )->>'code'
+  ),
+  'FORBIDDEN',
+  'an estimator cannot cancel an accepted quote'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000001',
+  true
+);
+
+select is(
+  (
+    public.transition_quote_status(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'accepted',
+      'cancelled',
+      null
+    )->>'code'
+  ),
+  'REASON_REQUIRED',
+  'cancelling an accepted quote requires a reason'
+);
+select is(
+  (
+    public.transition_quote_status(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'accepted',
+      'cancelled',
+      'Customer moved out of the service area'
+    )->>'ok'
+  )::boolean,
+  true,
+  'an admin can cancel an accepted quote with a reason'
+);
+select is(
+  (
+    select decision_notes
+    from public.quotes
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  'Customer moved out of the service area',
+  'the cancellation reason is recorded on the quote'
 );
 
 insert into auth.users (

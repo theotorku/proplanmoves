@@ -105,3 +105,15 @@
 **Decision:** `authenticated` holds read grants on operational tables but no insert or update grant on leads, estimates, estimate line items, quotes, quote line items, jobs, or audit events. Every lifecycle mutation goes through a transactional definer function.  
 **Reason:** RLS decides which rows a role may touch, not which column combinations are coherent. With direct grants, a client could mark a quote accepted or a job scheduled without the controlled transition, the acceptance record, or the audit event — and could write audit rows that never happened.  
 **Consequence:** Each new workflow stage ships with its own RPC before its UI. The grants were removed ahead of the quote and job work so no client path can predate the transactional one.
+
+## ADR-019 — Quote money is derived, quote terms are entered
+
+**Decision:** A quote's subtotal and total are always recomputed from its stored line items by an internal function no client can call. Discount, tax, deposit, and validity are entered by staff and validated against that subtotal. Conversion copies an approved estimate, so the caller supplies no amounts and can run as a normal staff member rather than the service role.  
+**Reason:** The distinction that matters is whether the caller supplies money. Estimate creation had to move to the server because the payload *was* the price (ADR-016); quote conversion derives everything it stores, so the same protection comes free.  
+**Consequence:** Removing or reducing a line clamps the discount and deposit so the table's arithmetic and deposit constraints keep holding. A quote stops being editable once it is sent, since its numbers are what the customer is looking at.
+
+## ADR-020 — Acceptance records the customer's answer; the job closes the lead
+
+**Decision:** Accepting a quote timestamps the acceptance and records the decision on the quote alone. The lead becomes `won` during quote-to-job conversion, not at acceptance. A rejected quote likewise leaves the lead open.  
+**Reason:** This is what WORKFLOWS.md specifies, and it matches how the work actually goes: a customer saying yes is not the same event as the company committing a crew, and a rejected price often becomes a revised one rather than a lost customer.  
+**Consequence:** A rejection needs a reason for the record, but losing the lead stays an explicit, separate decision with its own reason.

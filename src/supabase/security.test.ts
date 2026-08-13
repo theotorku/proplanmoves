@@ -104,4 +104,16 @@ describe("Supabase security migrations", () => {
       "grant execute on function create_estimate_from_calculation(uuid, uuid, uuid, jsonb)\n  to service_role;"
     );
   });
+
+  it("keeps quote money behind the quote functions", () => {
+    const quotes = readMigration("0009_quotes.sql");
+
+    expect(quotes).toContain("create or replace function create_quote_from_estimate");
+    expect(quotes).toContain("create or replace function transition_quote_status");
+    // Totals are always derived, so the recompute helper is internal only.
+    expect(quotes).toContain(
+      "revoke all on function recalculate_quote_totals(uuid) from public, anon, authenticated;"
+    );
+    expect(quotes).not.toContain("grant execute on function recalculate_quote_totals");
+  });
 });
