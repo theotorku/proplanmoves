@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(31);
+select plan(38);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.customers'::regclass),
@@ -464,6 +464,135 @@ select is(
   ),
   0,
   'the assignable staff list excludes view-only roles'
+);
+
+insert into auth.users (
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+values (
+  '10000000-0000-4000-8000-000000000004',
+  'authenticated',
+  'authenticated',
+  'estimator-test@example.com',
+  '',
+  now(),
+  '{}'::jsonb,
+  '{}'::jsonb,
+  now(),
+  now()
+);
+
+insert into public.profiles (id, full_name)
+values ('10000000-0000-4000-8000-000000000004', 'Database Test Estimator');
+
+insert into public.profile_roles (profile_id, role_id)
+select '10000000-0000-4000-8000-000000000004', id
+from public.roles
+where code = 'estimator';
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000004',
+  true
+);
+
+select is(
+  (
+    public.assign_lead(
+      '40000000-0000-4000-8000-000000000001',
+      '10000000-0000-4000-8000-000000000001',
+      '10000000-0000-4000-8000-000000000004'
+    )->>'code'
+  ),
+  'FORBIDDEN',
+  'an estimator cannot take a lead owned by another operator'
+);
+select is(
+  (
+    public.assign_lead(
+      '40000000-0000-4000-8000-000000000001',
+      '10000000-0000-4000-8000-000000000001',
+      null
+    )->>'code'
+  ),
+  'FORBIDDEN',
+  'an estimator cannot release a lead owned by another operator'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000001',
+  true
+);
+
+select is(
+  (
+    public.assign_lead(
+      '40000000-0000-4000-8000-000000000001',
+      '10000000-0000-4000-8000-000000000001',
+      null
+    )->>'ok'
+  )::boolean,
+  true,
+  'an admin can release a lead'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000004',
+  true
+);
+
+select is(
+  (
+    public.assign_lead(
+      '40000000-0000-4000-8000-000000000001',
+      null,
+      '10000000-0000-4000-8000-000000000004'
+    )->>'ok'
+  )::boolean,
+  true,
+  'an estimator can claim an unassigned lead'
+);
+select is(
+  (
+    select assigned_profile_id
+    from public.leads
+    where id = '40000000-0000-4000-8000-000000000001'
+  ),
+  '10000000-0000-4000-8000-000000000004'::uuid,
+  'the claim updates the lead'
+);
+select is(
+  (
+    public.assign_lead(
+      '40000000-0000-4000-8000-000000000001',
+      '10000000-0000-4000-8000-000000000004',
+      null
+    )->>'ok'
+  )::boolean,
+  true,
+  'an estimator can release their own lead'
+);
+select is(
+  (
+    public.assign_lead(
+      '40000000-0000-4000-8000-000000000001',
+      null,
+      '10000000-0000-4000-8000-000000000001'
+    )->>'code'
+  ),
+  'FORBIDDEN',
+  'an estimator cannot assign a lead to another operator'
 );
 
 insert into auth.users (
