@@ -29,7 +29,7 @@
 - [x] Lead table with filters
 - [x] Lead detail page
 - [x] Status changes
-- [ ] Assignment
+- [x] Assignment
 - [x] Notes
 - [x] Contact activities
 - [x] Lost/disqualified reasons
@@ -37,13 +37,14 @@
 
 ## Epic 4 — Estimation
 
-- [ ] Pricing rule schema and admin seed
-- [ ] Calculation service
-- [ ] Crew/truck/hour recommendations
-- [ ] Surcharges and minimums
-- [ ] Confidence, assumptions, warnings
+- [x] Pricing rule schema and admin seed
+- [x] Calculation service
+- [x] Crew/truck/hour recommendations
+- [x] Surcharges and minimums
+- [x] Confidence, assumptions, warnings
 - [ ] Estimate editor and review
-- [ ] Calculation test matrix
+- [ ] Estimate persistence against a pricing rule version
+- [x] Calculation test matrix
 
 ## Epic 5 — Quotes
 

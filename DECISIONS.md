@@ -75,3 +75,15 @@
 **Decision:** Keep migrations, seed data, configuration, and pgTAP tests in the standard project-root `supabase/` layout and pin the CLI version.  
 **Reason:** The schema must be recreated and tested locally before it is applied to a hosted project.  
 **Consequence:** CI runs a local Supabase stack, resets it from migrations, and executes database integrity and privilege tests before application E2E/build checks.
+
+## ADR-014 — Lead ownership is queue-scoped
+
+**Decision:** Owners and admins assign any lead to any operational staff member. Estimators may only claim an unassigned lead or release one they already own, and assignment runs through the same transactional definer-function pattern as status changes.  
+**Reason:** Assignment decides who works a lead, so silently taking a teammate's work is a coordination failure, and the activity plus audit trail must move with the row.  
+**Consequence:** `assign_lead` re-checks the expected assignee and rejects stale writes. `list_assignable_staff` exposes only active staff holding an operational role, so viewer accounts never appear as owners.
+
+## ADR-015 — Pricing rule versions carry a validated document
+
+**Decision:** `pricing_rule_versions.rules_json` is parsed against a strict Zod schema before any calculation, and the seeded active version is asserted against the same schema in tests.  
+**Reason:** Versions become immutable once an estimate references them (ADR-012), so a malformed or partial document must be rejected before it can be used and frozen.  
+**Consequence:** Adding a pricing input means changing the schema, the seed, and the calculation together. The calculation service reads no clock and no environment, so the same lead and version always produce the same estimate.

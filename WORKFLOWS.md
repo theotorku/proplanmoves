@@ -71,8 +71,10 @@ Rules:
 ## Lead-to-estimate
 
 1. Verify lead is qualified or privileged override exists.
-2. Load active pricing rule version.
-3. Compute recommendation.
+2. Load active pricing rule version and validate its rules document.
+3. Compute the recommendation deterministically from the lead facts and that
+   version: crew, trucks, billable minutes, line items, range, confidence,
+   assumptions, and warnings.
 4. Store estimate and line items.
 5. Store assumptions and warnings.
 6. Change lead to `estimate_pending`.
@@ -87,6 +89,16 @@ Rules:
 5. Lost or disqualified transitions require a reason.
 6. Each status change records a lead activity and audit event.
 7. Reopening terminal leads requires owner/admin role.
+
+## Lead assignment
+
+1. Staff filter the queue by owner, including an unassigned bucket.
+2. Owners and admins assign any lead to any active operational staff member.
+3. Estimators claim an unassigned lead or release one they already own.
+4. The server action submits the assignment it displayed; a changed owner is
+   rejected as stale rather than overwritten.
+5. The assignee must be active and hold an operational role.
+6. Each assignment change records a lead activity and audit event.
 
 ## Quote-to-job
 
