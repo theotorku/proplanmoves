@@ -76,7 +76,7 @@ export async function generateEstimateAction(
   _previousState: LeadActionState,
   formData: FormData
 ): Promise<LeadActionState> {
-  await requireUserWithRoles(["owner", "admin", "estimator"]);
+  const { user } = await requireUserWithRoles(["owner", "admin", "estimator"]);
   const leadId = String(formData.get("leadId") ?? "");
 
   if (!leadId) {
@@ -85,6 +85,7 @@ export async function generateEstimateAction(
 
   const result = await generateEstimateForLead({
     leadId,
+    actorProfileId: user.id,
     today: new Date().toISOString().slice(0, 10)
   });
 

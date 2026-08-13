@@ -257,6 +257,7 @@ export type Database = {
           confidence: string;
           assumptions: Json;
           warnings: Json;
+          has_manual_adjustment: boolean;
           reviewed_by: string | null;
           reviewed_at: string | null;
           created_at: string;
@@ -279,6 +280,7 @@ export type Database = {
           confidence: string;
           assumptions?: Json;
           warnings?: Json;
+          has_manual_adjustment?: boolean;
           reviewed_by?: string | null;
           reviewed_at?: string | null;
           created_at?: string;
@@ -391,6 +393,7 @@ export type Database = {
       };
       create_estimate_from_calculation: {
         Args: {
+          p_actor_profile_id: string;
           p_lead_id: string;
           p_pricing_rule_version_id: string;
           p_calculation: Json;

@@ -10,6 +10,12 @@ Use Supabase Auth. Public quote submission is anonymous but rate-limited. All ad
 
 ## Authorization
 
+Write access rule: `authenticated` holds read grants only on workflow tables.
+Leads, estimates, estimate line items, quotes, quote line items, jobs, and audit
+events are mutated exclusively through transactional definer functions. Estimate
+creation is service-role only, so the deterministic calculation is the only way
+a price is recorded (ADR-016, ADR-018).
+
 Roles:
 
 - Owner: full control

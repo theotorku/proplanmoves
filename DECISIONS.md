@@ -88,14 +88,20 @@
 **Reason:** Versions become immutable once an estimate references them (ADR-012), so a malformed or partial document must be rejected before it can be used and frozen.  
 **Consequence:** Adding a pricing input means changing the schema, the seed, and the calculation together. The calculation service reads no clock and no environment, so the same lead and version always produce the same estimate.
 
-## ADR-016 — Estimates are priced in the application and verified in the database
+## ADR-016 — Estimates are priced in the application and created only by the server
 
-**Decision:** TypeScript computes the estimate; `create_estimate_from_calculation` stores it after re-checking the parts that must hold — the lead is qualified, the pricing version is still current, and the line items add up to the stored total.  
-**Reason:** Pricing logic belongs in a testable domain service (ADR-004), but the RPC is reachable by any authenticated staff member, so the database cannot assume the payload was computed honestly.  
-**Consequence:** A calculation the database refuses writes nothing at all — no estimate, no line items, no lead transition. The estimate total is always reproducible from the stored line items, including after an operator override.
+**Decision:** TypeScript computes the estimate, and `create_estimate_from_calculation` is executable only by the service role. The server action authorizes the staff member, derives the payload from the calculation service, and passes the actor explicitly; the database re-checks that the actor may create estimates, the lead is qualified, the pricing version is still current, and the line items add up to the stored total.  
+**Reason:** Pricing logic belongs in a testable domain service (ADR-004). While the RPC was callable by any authenticated estimator, a staff member could post internally consistent but arbitrary amounts straight to the Data API and attach them to a pricing version, so "priced by version X" was a claim the data could not support.  
+**Consequence:** The deterministic calculation is the only way an estimate comes into existence. A refused calculation writes nothing at all — no estimate, no line items, no lead transition. Because the service role has no `auth.uid()`, this function writes its own lead transition rather than delegating to `transition_lead_status`.
 
 ## ADR-017 — Estimate approval is a separate pair of hands
 
 **Decision:** An estimator prepares an estimate and submits it for review; only an owner or admin approves or rejects it, and a rejection needs a reason. Approved and rejected estimates are frozen — a new estimate supersedes them.  
 **Reason:** The price is the commercial commitment, so the person who produced it should not be the only person who accepts it.  
-**Consequence:** Overrides are allowed while an estimate is draft, generated, or under review, and each one is audited with its previous and new amounts. Reworking a rejected estimate means resubmitting it for review.
+**Consequence:** Overrides are allowed while an estimate is draft, generated, or under review, and each one is audited with its previous and new amounts. An overridden estimate is flagged with `has_manual_adjustment`, so a total that no longer follows from the pricing rules says so. Reworking a rejected estimate means resubmitting it for review.
+
+## ADR-018 — No direct client writes to workflow records
+
+**Decision:** `authenticated` holds read grants on operational tables but no insert or update grant on leads, estimates, estimate line items, quotes, quote line items, jobs, or audit events. Every lifecycle mutation goes through a transactional definer function.  
+**Reason:** RLS decides which rows a role may touch, not which column combinations are coherent. With direct grants, a client could mark a quote accepted or a job scheduled without the controlled transition, the acceptance record, or the audit event — and could write audit rows that never happened.  
+**Consequence:** Each new workflow stage ships with its own RPC before its UI. The grants were removed ahead of the quote and job work so no client path can predate the transactional one.

@@ -28,6 +28,10 @@ export default async function AdminLeadDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  // Each control is shown only to the roles its server action accepts, so a
+  // read-only operator is never handed a button that ends in a redirect.
+  const canQualify = hasAnyRole(roles, ["owner", "admin", "estimator"]);
+  const canNote = hasAnyRole(roles, ["owner", "admin", "estimator", "dispatcher"]);
   const canAssign = hasAnyRole(roles, ["owner", "admin", "estimator"]);
   const canPrepareEstimate = hasAnyRole(roles, ["owner", "admin", "estimator"]);
   const canSeeEstimate = hasAnyRole(roles, ["owner", "admin", "estimator", "viewer"]);
@@ -112,12 +116,14 @@ export default async function AdminLeadDetailPage({ params }: PageProps) {
               <p className="mt-2 text-sm">{lead.customerEmail ?? "No email"}</p>
               <p className="text-sm">{lead.customerPhone ?? "No phone"}</p>
             </div>
-            <div className="rounded-md border border-neutral-300 bg-white p-4">
-              <h2 className="font-semibold">Qualify lead</h2>
-              <div className="mt-3">
-                <LeadStatusForm currentStatus={lead.status} leadId={lead.id} />
+            {canQualify ? (
+              <div className="rounded-md border border-neutral-300 bg-white p-4">
+                <h2 className="font-semibold">Qualify lead</h2>
+                <div className="mt-3">
+                  <LeadStatusForm currentStatus={lead.status} leadId={lead.id} />
+                </div>
               </div>
-            </div>
+            ) : null}
             {canAssign ? (
               <div className="rounded-md border border-neutral-300 bg-white p-4">
                 <h2 className="font-semibold">Ownership</h2>
@@ -132,9 +138,11 @@ export default async function AdminLeadDetailPage({ params }: PageProps) {
             ) : null}
             <div className="rounded-md border border-neutral-300 bg-white p-4">
               <h2 className="font-semibold">Notes</h2>
-              <div className="mt-3">
-                <LeadNoteForm leadId={lead.id} />
-              </div>
+              {canNote ? (
+                <div className="mt-3">
+                  <LeadNoteForm leadId={lead.id} />
+                </div>
+              ) : null}
               <div className="mt-4 grid gap-3">
                 {lead.staffNotes.map((note) => (
                   <div className="border-t border-neutral-200 pt-3 text-sm" key={note.id}>

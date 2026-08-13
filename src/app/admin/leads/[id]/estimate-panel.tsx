@@ -105,6 +105,13 @@ function EstimateDetail({
         <span className="text-sm text-neutral-600">{estimate.confidence} confidence</span>
       </div>
 
+      {estimate.hasManualAdjustment ? (
+        <p className="text-sm text-neutral-700">
+          Amounts were adjusted by hand, so this total no longer follows from the pricing rules
+          alone.
+        </p>
+      ) : null}
+
       <dl className="grid gap-3 text-sm md:grid-cols-4">
         <div>
           <dt className="text-neutral-600">Crew</dt>

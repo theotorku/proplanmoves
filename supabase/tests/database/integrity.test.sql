@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(56);
+select plan(63);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.customers'::regclass),
@@ -601,6 +601,36 @@ select ok(
   not has_table_privilege('authenticated', 'public.estimates', 'INSERT'),
   'authenticated callers cannot insert estimates directly'
 );
+select ok(
+  not has_function_privilege(
+    'authenticated',
+    'public.create_estimate_from_calculation(uuid,uuid,uuid,jsonb)',
+    'EXECUTE'
+  ),
+  'staff cannot post their own pricing to the estimate RPC'
+);
+select ok(
+  has_function_privilege(
+    'service_role',
+    'public.create_estimate_from_calculation(uuid,uuid,uuid,jsonb)',
+    'EXECUTE'
+  ),
+  'the application server can create estimates from a calculation'
+);
+select ok(
+  not has_table_privilege('authenticated', 'public.quotes', 'UPDATE')
+    and not has_table_privilege('authenticated', 'public.quote_line_items', 'INSERT'),
+  'authenticated callers cannot write quote records directly'
+);
+select ok(
+  not has_table_privilege('authenticated', 'public.jobs', 'UPDATE')
+    and not has_table_privilege('authenticated', 'public.jobs', 'INSERT'),
+  'authenticated callers cannot schedule jobs directly'
+);
+select ok(
+  not has_table_privilege('authenticated', 'public.audit_events', 'INSERT'),
+  'authenticated callers cannot forge audit events'
+);
 
 insert into public.leads (
   id,
@@ -625,6 +655,7 @@ select public.transition_lead_status(
 select is(
   (
     public.create_estimate_from_calculation(
+      '10000000-0000-4000-8000-000000000004',
       '40000000-0000-4000-8000-000000000003',
       (select id from public.pricing_rule_versions order by version_number limit 1),
       '{
@@ -723,6 +754,15 @@ select is(
 );
 select is(
   (
+    select has_manual_adjustment
+    from public.estimates
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  true,
+  'an override marks the estimate as no longer derived from its pricing version'
+);
+select is(
+  (
     select high_total_cents
     from public.estimates
     where lead_id = '40000000-0000-4000-8000-000000000003'
@@ -817,6 +857,7 @@ values (
 select is(
   (
     public.create_estimate_from_calculation(
+      '10000000-0000-4000-8000-000000000004',
       '40000000-0000-4000-8000-000000000002',
       (select id from public.pricing_rule_versions order by version_number limit 1),
       '{
@@ -846,6 +887,7 @@ select public.transition_lead_status(
 select is(
   (
     public.create_estimate_from_calculation(
+      '10000000-0000-4000-8000-000000000004',
       '40000000-0000-4000-8000-000000000002',
       (select id from public.pricing_rule_versions order by version_number limit 1),
       '{
@@ -863,6 +905,28 @@ select is(
   ),
   'TOTAL_MISMATCH',
   'an estimate whose line items do not add up is rejected'
+);
+select is(
+  (
+    public.create_estimate_from_calculation(
+      '10000000-0000-4000-8000-000000000003',
+      '40000000-0000-4000-8000-000000000002',
+      (select id from public.pricing_rule_versions order by version_number limit 1),
+      '{
+        "crewSize": 2,
+        "truckCount": 1,
+        "estimatedMinutes": 180,
+        "lowTotalCents": 47700,
+        "highTotalCents": 60000,
+        "confidence": "medium",
+        "lineItems": [
+          {"code":"moving_labor","description":"Moving labor","quantity":3,"unit":"hour","unitAmountCents":15900,"totalAmountCents":47700,"category":"labor","sortOrder":0}
+        ]
+      }'::jsonb
+    )->>'code'
+  ),
+  'FORBIDDEN',
+  'a view-only profile cannot be recorded as the author of an estimate'
 );
 select is(
   (

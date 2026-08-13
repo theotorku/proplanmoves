@@ -90,4 +90,18 @@ describe("Supabase security migrations", () => {
       "revoke all on function update_estimate_line_item(uuid, numeric, integer)"
     );
   });
+
+  it("leaves no direct client write path into workflow records", () => {
+    const hardening = readMigration("0008_harden_workflow_writes.sql");
+
+    expect(hardening).toContain(
+      "revoke insert, update on quotes, quote_line_items, jobs, audit_events\n  from authenticated;"
+    );
+    expect(hardening).toContain(
+      "revoke all on function create_estimate_from_calculation(uuid, uuid, uuid, jsonb)\n  from public, anon, authenticated;"
+    );
+    expect(hardening).toContain(
+      "grant execute on function create_estimate_from_calculation(uuid, uuid, uuid, jsonb)\n  to service_role;"
+    );
+  });
 });

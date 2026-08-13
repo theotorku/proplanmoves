@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/domains/auth/server";
+import { getSupabaseServiceClient } from "@/lib/supabase/service";
 import {
   calculateEstimate,
   type EstimateCalculation,
@@ -28,6 +29,7 @@ export type EstimateSummary = {
   confidence: string;
   assumptions: string[];
   warnings: string[];
+  hasManualAdjustment: boolean;
   reviewedAt: string | null;
   createdAt: string;
   lineItems: EstimateSummaryLineItem[];
@@ -79,6 +81,7 @@ type EstimateRow = {
   confidence: string;
   assumptions: unknown;
   warnings: unknown;
+  has_manual_adjustment: boolean;
   reviewed_at: string | null;
   created_at: string;
 };
@@ -134,6 +137,8 @@ export async function getActivePricingRuleVersion(): Promise<ActivePricingRuleVe
 
 export async function generateEstimateForLead(params: {
   leadId: string;
+  /** The staff member creating the estimate; recorded as the actor. */
+  actorProfileId: string;
   /** ISO calendar date used for past-move-date warnings. */
   today: string;
 }) {
@@ -166,11 +171,19 @@ export async function generateEstimateForLead(params: {
 
   const calculation = calculateEstimate(toCalculationInput(lead, params.today), version.rules);
 
-  const { data, error } = await supabase.rpc("create_estimate_from_calculation", {
-    p_lead_id: params.leadId,
-    p_pricing_rule_version_id: version.id,
-    p_calculation: toCalculationPayload(calculation)
-  });
+  // Estimate creation is service-role only: the deterministic calculation above
+  // is the only way an estimate comes into existence, so a staff member cannot
+  // post arbitrary pricing to the Data API and attach it to a pricing version.
+  // The database still verifies the acting profile can create estimates.
+  const { data, error } = await getSupabaseServiceClient().rpc(
+    "create_estimate_from_calculation",
+    {
+      p_actor_profile_id: params.actorProfileId,
+      p_lead_id: params.leadId,
+      p_pricing_rule_version_id: version.id,
+      p_calculation: toCalculationPayload(calculation)
+    }
+  );
 
   if (error) {
     throw new Error(`Unable to save the estimate: ${error.message}`);
@@ -201,7 +214,7 @@ export async function getLatestEstimateForLead(leadId: string): Promise<Estimate
   const { data: estimate, error } = await supabase
     .from("estimates")
     .select(
-      "id, reference, status, suggested_crew_size, suggested_truck_count, estimated_minutes, travel_allowance_minutes, low_total_cents, high_total_cents, confidence, assumptions, warnings, reviewed_at, created_at"
+      "id, reference, status, suggested_crew_size, suggested_truck_count, estimated_minutes, travel_allowance_minutes, low_total_cents, high_total_cents, confidence, assumptions, warnings, has_manual_adjustment, reviewed_at, created_at"
     )
     .eq("lead_id", leadId)
     .order("created_at", { ascending: false })
@@ -243,6 +256,7 @@ export async function getLatestEstimateForLead(leadId: string): Promise<Estimate
     confidence: estimate.confidence,
     assumptions: stringArraySchema.parse(estimate.assumptions),
     warnings: stringArraySchema.parse(estimate.warnings),
+    hasManualAdjustment: estimate.has_manual_adjustment,
     reviewedAt: estimate.reviewed_at,
     createdAt: estimate.created_at,
     lineItems: (lineItems ?? []).map((item) => ({
