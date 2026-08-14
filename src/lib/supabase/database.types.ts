@@ -401,6 +401,56 @@ export type Database = {
         Update: Partial<Database["public"]["Tables"]["quote_line_items"]["Insert"]>;
         Relationships: [];
       };
+      jobs: {
+        Row: {
+          id: string;
+          reference: string;
+          customer_id: string;
+          lead_id: string;
+          estimate_id: string;
+          quote_id: string;
+          status: string;
+          scheduled_date: string | null;
+          arrival_window_start: string | null;
+          arrival_window_end: string | null;
+          origin_address_id: string | null;
+          destination_address_id: string | null;
+          crew_size: number;
+          truck_count: number;
+          estimated_duration_minutes: number;
+          estimated_revenue_cents: number;
+          operational_notes: string | null;
+          customer_notes: string | null;
+          decision_notes: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          reference?: string;
+          customer_id: string;
+          lead_id: string;
+          estimate_id: string;
+          quote_id: string;
+          status?: string;
+          scheduled_date?: string | null;
+          arrival_window_start?: string | null;
+          arrival_window_end?: string | null;
+          origin_address_id?: string | null;
+          destination_address_id?: string | null;
+          crew_size: number;
+          truck_count: number;
+          estimated_duration_minutes: number;
+          estimated_revenue_cents: number;
+          operational_notes?: string | null;
+          customer_notes?: string | null;
+          decision_notes?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: Partial<Database["public"]["Tables"]["jobs"]["Insert"]>;
+        Relationships: [];
+      };
       profile_roles: {
         Row: {
           profile_id: string;
@@ -499,6 +549,43 @@ export type Database = {
           staff_name: string;
           staff_roles: string[];
         }[];
+      };
+      create_job_from_quote: {
+        Args: {
+          p_quote_id: string;
+          p_scheduled_date?: string | null;
+          p_arrival_window_start?: string | null;
+          p_arrival_window_end?: string | null;
+        };
+        Returns: Json;
+      };
+      schedule_job: {
+        Args: {
+          p_job_id: string;
+          p_scheduled_date: string;
+          p_arrival_window_start: string;
+          p_arrival_window_end: string;
+        };
+        Returns: Json;
+      };
+      update_job_requirements: {
+        Args: {
+          p_job_id: string;
+          p_crew_size: number;
+          p_truck_count: number;
+          p_estimated_duration_minutes: number;
+          p_operational_notes?: string | null;
+        };
+        Returns: Json;
+      };
+      transition_job_status: {
+        Args: {
+          p_job_id: string;
+          p_expected_status: string;
+          p_next_status: string;
+          p_reason?: string | null;
+        };
+        Returns: Json;
       };
       create_quote_from_estimate: {
         Args: {

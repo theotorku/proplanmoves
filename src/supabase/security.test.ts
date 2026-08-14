@@ -116,4 +116,18 @@ describe("Supabase security migrations", () => {
     );
     expect(quotes).not.toContain("grant execute on function recalculate_quote_totals");
   });
+
+  it("keeps job scheduling behind the dispatch functions", () => {
+    const jobs = readMigration("0010_jobs.sql");
+
+    expect(jobs).toContain("create or replace function create_job_from_quote");
+    expect(jobs).toContain("create or replace function schedule_job");
+    expect(jobs).toContain("create or replace function transition_job_status");
+    expect(jobs).toContain(
+      "revoke all on function create_job_from_quote(uuid, date, time, time) from public, anon;"
+    );
+    expect(jobs).toContain(
+      "revoke all on function transition_job_status(uuid, job_status, job_status, text)\n  from public, anon;"
+    );
+  });
 });

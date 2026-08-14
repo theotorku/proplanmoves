@@ -117,3 +117,15 @@
 **Decision:** Accepting a quote timestamps the acceptance and records the decision on the quote alone. The lead becomes `won` during quote-to-job conversion, not at acceptance. A rejected quote likewise leaves the lead open.  
 **Reason:** This is what WORKFLOWS.md specifies, and it matches how the work actually goes: a customer saying yes is not the same event as the company committing a crew, and a rejected price often becomes a revised one rather than a lost customer.  
 **Consequence:** A rejection needs a reason for the record, but losing the lead stays an explicit, separate decision with its own reason.
+
+## ADR-021 — Conversion is idempotent and jobs are a snapshot
+
+**Decision:** `create_job_from_quote` returns the existing job when one already exists for the quote instead of failing or creating a second, and it copies crew, trucks, duration, revenue, and addresses onto the job rather than reading them through the quote at display time.  
+**Reason:** Booking is the step most likely to be double-submitted — a slow request, a second dispatcher, a retried action — and a unique constraint alone turns that into an error the operator has to interpret. Dispatch also needs a stable record of what was sold: a later estimate revision must not silently change what the crew was told.  
+**Consequence:** Callers check `created` to tell a booking from a no-op. Job requirements are edited on the job, so dispatch can send four movers on a three-mover quote without altering the customer's price.
+
+## ADR-022 — Booking closes the lead, and dispatch owns jobs
+
+**Decision:** Jobs are read and written by owner, admin, and dispatcher; estimators have no access. Moving the lead to `won` happens inside job creation rather than through `transition_lead_status`.  
+**Reason:** WORKFLOWS.md puts the lead's close at the conversion step, but lead transitions are an estimator/manager action a dispatcher cannot perform. Delegating would have forced dispatchers into lead-editing rights they should not have.  
+**Consequence:** The lead move is written inside the conversion with the same activity and audit records the shared function would have produced. Marking a job complete that was never started is an owner/admin correction with a reason, since it contradicts the recorded history.

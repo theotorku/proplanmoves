@@ -60,12 +60,13 @@
 
 ## Epic 6 — Jobs
 
-- [ ] Idempotent quote-to-job conversion
-- [ ] Job list and detail
-- [ ] Scheduling and arrival windows
-- [ ] Crew/truck requirement fields
-- [ ] Status transitions
-- [ ] Upcoming schedule view
+- [x] Idempotent quote-to-job conversion
+- [x] Job list and detail
+- [x] Scheduling and arrival windows
+- [x] Crew/truck requirement fields
+- [x] Status transitions
+- [x] Upcoming schedule view
+- [ ] Crew assignment to named staff (crew size is a count today)
 
 ## Epic 7 — Dashboard
 

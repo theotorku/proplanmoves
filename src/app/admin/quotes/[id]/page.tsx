@@ -2,8 +2,10 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { hasAnyRole } from "@/domains/auth/roles";
 import { requireUserWithRoles } from "@/domains/auth/server";
+import { getJobForQuote } from "@/domains/jobs/service";
 import { getQuote } from "@/domains/quotes/service";
 import { isPastExpiry, isQuoteEditable } from "@/domains/quotes/status";
+import { JobPanel } from "./job-panel";
 import {
   formatCents,
   QuoteLineItemsEditor,
@@ -32,6 +34,8 @@ export default async function QuoteDetailPage({ params }: PageProps) {
     notFound();
   }
 
+  const canSeeJobs = hasAnyRole(roles, ["owner", "admin", "dispatcher", "viewer"]);
+  const job = canSeeJobs ? await getJobForQuote(quote.id) : null;
   const today = new Date().toISOString().slice(0, 10);
   const canWork = hasAnyRole(roles, ["owner", "admin", "estimator"]);
   const editable = canWork && isQuoteEditable(quote.status);
@@ -116,6 +120,17 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                   />
                 </div>
               </div>
+            ) : null}
+
+            {/* Estimators have no read access to jobs, so the panel would only
+                ever tell them a job does not exist. */}
+            {canSeeJobs ? (
+              <JobPanel
+                canDispatch={hasAnyRole(roles, ["owner", "admin", "dispatcher"])}
+                job={job}
+                quoteId={quote.id}
+                quoteStatus={quote.status}
+              />
             ) : null}
 
             <div className="rounded-md border border-neutral-300 bg-white p-4">

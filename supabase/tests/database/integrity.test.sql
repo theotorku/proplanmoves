@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(89);
+select plan(112);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.customers'::regclass),
@@ -1280,6 +1280,370 @@ select is(
   ),
   'Customer moved out of the service area',
   'the cancellation reason is recorded on the quote'
+);
+
+-- Quote-to-job conversion. The cancelled quote above frees the estimate, so
+-- re-quoting is the natural way into the job tests.
+insert into auth.users (
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+values (
+  '10000000-0000-4000-8000-000000000005',
+  'authenticated',
+  'authenticated',
+  'dispatcher-test@example.com',
+  '',
+  now(),
+  '{}'::jsonb,
+  '{}'::jsonb,
+  now(),
+  now()
+);
+
+insert into public.profiles (id, full_name)
+values ('10000000-0000-4000-8000-000000000005', 'Database Test Dispatcher');
+
+insert into public.profile_roles (profile_id, role_id)
+select '10000000-0000-4000-8000-000000000005', id
+from public.roles
+where code = 'dispatcher';
+
+select is(
+  (
+    public.create_quote_from_estimate(
+      (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000003'),
+      null,
+      'terms-v1'
+    )->>'ok'
+  )::boolean,
+  true,
+  'a cancelled quote frees the estimate to be re-quoted'
+);
+select is(
+  (
+    public.create_job_from_quote(
+      (
+        select id from public.quotes
+        where lead_id = '40000000-0000-4000-8000-000000000003'
+        order by reference desc limit 1
+      ),
+      null,
+      null,
+      null
+    )->>'code'
+  ),
+  'QUOTE_NOT_ACCEPTED',
+  'only an accepted quote can become a job'
+);
+
+select public.transition_quote_status(
+  (
+    select id from public.quotes
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+    order by reference desc limit 1
+  ),
+  'draft',
+  'ready',
+  null
+);
+select public.transition_quote_status(
+  (
+    select id from public.quotes
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+    order by reference desc limit 1
+  ),
+  'ready',
+  'sent',
+  null
+);
+select is(
+  (
+    public.transition_quote_status(
+      (
+        select id from public.quotes
+        where lead_id = '40000000-0000-4000-8000-000000000003'
+        order by reference desc limit 1
+      ),
+      'sent',
+      'accepted',
+      null
+    )->>'ok'
+  )::boolean,
+  true,
+  'the replacement quote is accepted'
+);
+
+select ok(
+  has_function_privilege(
+    'authenticated',
+    'public.create_job_from_quote(uuid,date,time,time)',
+    'EXECUTE'
+  ),
+  'dispatch staff can convert an accepted quote into a job'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000004',
+  true
+);
+
+select throws_ok(
+  $$
+    select public.create_job_from_quote(
+      (
+        select id from public.quotes
+        where lead_id = '40000000-0000-4000-8000-000000000003'
+        order by reference desc limit 1
+      ),
+      null,
+      null,
+      null
+    )
+  $$,
+  '42501',
+  'Not authorized to create jobs.',
+  'an estimator cannot book jobs'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000001',
+  true
+);
+
+select is(
+  (
+    public.create_job_from_quote(
+      (
+        select id from public.quotes
+        where lead_id = '40000000-0000-4000-8000-000000000003'
+        order by reference desc limit 1
+      ),
+      null,
+      null,
+      null
+    )->>'created'
+  )::boolean,
+  true,
+  'an accepted quote converts to a job'
+);
+select is(
+  (
+    select status::text
+    from public.jobs
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  'unscheduled',
+  'a job with no date starts unscheduled'
+);
+select is(
+  (
+    select status::text
+    from public.leads
+    where id = '40000000-0000-4000-8000-000000000003'
+  ),
+  'won',
+  'booking the job closes the lead as won'
+);
+select is(
+  (
+    public.create_job_from_quote(
+      (
+        select id from public.quotes
+        where lead_id = '40000000-0000-4000-8000-000000000003'
+        order by reference desc limit 1
+      ),
+      null,
+      null,
+      null
+    )->>'created'
+  )::boolean,
+  false,
+  'converting the same quote twice returns the existing job'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.jobs
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  1,
+  'a repeated conversion creates no second job'
+);
+select is(
+  (
+    select estimated_revenue_cents
+    from public.jobs
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  107500,
+  'the job snapshots the quoted value'
+);
+select is(
+  (
+    select crew_size
+    from public.jobs
+    where lead_id = '40000000-0000-4000-8000-000000000003'
+  ),
+  3,
+  'the job snapshots the crew the estimate recommended'
+);
+
+select is(
+  (
+    public.transition_job_status(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'unscheduled',
+      'scheduled',
+      null
+    )->>'code'
+  ),
+  'SCHEDULE_REQUIRED',
+  'a job cannot be scheduled without a date'
+);
+select is(
+  (
+    public.schedule_job(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      (current_date + 7),
+      '10:00',
+      '09:00'
+    )->>'code'
+  ),
+  'INVALID_WINDOW',
+  'an arrival window must end after it starts'
+);
+select is(
+  (
+    public.schedule_job(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      (current_date + 7),
+      '08:00',
+      '10:00'
+    )->>'status'
+  ),
+  'scheduled',
+  'scheduling an unscheduled job puts it on the calendar'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000005',
+  true
+);
+
+select is(
+  (
+    public.transition_job_status(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'scheduled',
+      'completed',
+      'Crew finished but never started it in the app'
+    )->>'code'
+  ),
+  'FORBIDDEN',
+  'a dispatcher cannot complete a job that was never started'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000001',
+  true
+);
+
+select is(
+  (
+    public.transition_job_status(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'scheduled',
+      'completed',
+      null
+    )->>'code'
+  ),
+  'REASON_REQUIRED',
+  'completing a job that never started requires a reason'
+);
+select is(
+  (
+    public.transition_job_status(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'scheduled',
+      'confirmed',
+      null
+    )->>'ok'
+  )::boolean,
+  true,
+  'a scheduled job can be confirmed'
+);
+select is(
+  (
+    public.schedule_job(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      (current_date + 9),
+      '08:00',
+      '10:00'
+    )->>'status'
+  ),
+  'scheduled',
+  'moving a confirmed job returns it to scheduled for reconfirmation'
+);
+select is(
+  (
+    public.transition_job_status(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'scheduled',
+      'in_progress',
+      null
+    )->>'ok'
+  )::boolean,
+  true,
+  'a scheduled job can be started'
+);
+select is(
+  (
+    public.transition_job_status(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'in_progress',
+      'completed',
+      null
+    )->>'ok'
+  )::boolean,
+  true,
+  'a started job completes without ceremony'
+);
+select is(
+  (
+    public.transition_job_status(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'completed',
+      'cancelled',
+      'Changed our mind'
+    )->>'code'
+  ),
+  'INVALID_TRANSITION',
+  'a completed job is final'
+);
+select is(
+  (
+    public.schedule_job(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      (current_date + 14),
+      '08:00',
+      '10:00'
+    )->>'code'
+  ),
+  'JOB_CLOSED',
+  'a completed job cannot be rescheduled'
 );
 
 insert into auth.users (

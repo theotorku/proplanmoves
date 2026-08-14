@@ -63,7 +63,14 @@ unscheduled → scheduled → confirmed → in_progress → completed
 Rules:
 - Creation requires an accepted quote.
 - Completion requires a valid start path unless owner/admin override is recorded.
+  Completing a job that was never `in_progress` takes an owner or admin and a
+  reason.
 - Cancellation requires a reason.
+- Scheduling requires a date and both ends of an arrival window.
+- Changing the date or window of a `confirmed` job returns it to `scheduled`,
+  because the customer confirmed the old window.
+- Unscheduling clears the date and window.
+- Jobs belong to dispatch: owner, admin, and dispatcher.
 
 ## Public lead submission
 
@@ -126,9 +133,11 @@ Rules:
 
 ## Quote-to-job
 
-1. Verify quote is accepted and not already converted.
+1. Verify quote is accepted. A quote that is already converted returns its
+   existing job rather than creating a second one.
 2. Create job in `unscheduled` or `scheduled` state.
-3. Copy commercial and move facts as a historical snapshot.
+3. Copy commercial and move facts as a historical snapshot: crew, trucks,
+   duration, booked value, and both addresses.
 4. Link job to source records.
 5. Change lead to `won`.
 6. Write job and lead audit events.
