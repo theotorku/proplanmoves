@@ -70,11 +70,11 @@
 
 ## Epic 7 — Dashboard
 
-- [ ] KPI queries
-- [ ] Conversion calculations
-- [ ] Booked revenue
-- [ ] Upcoming jobs
-- [ ] Empty/error/loading states
+- [x] KPI queries
+- [x] Conversion calculations
+- [x] Booked revenue
+- [x] Upcoming jobs
+- [x] Empty/error/loading states
 
 ## Epic 8 — Release hardening
 
