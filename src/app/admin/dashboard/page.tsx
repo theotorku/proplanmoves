@@ -4,6 +4,7 @@ import { hasAnyRole } from "@/domains/auth/roles";
 import { requireUserWithRoles } from "@/domains/auth/server";
 import { getDashboardMetrics } from "@/domains/dashboard/service";
 import { formatCents, formatPercent } from "@/domains/dashboard/metrics";
+import { signOutAction } from "@/app/login/actions";
 
 export const dynamic = "force-dynamic";
 
@@ -27,9 +28,19 @@ export default async function DashboardPage() {
             </p>
             <h1 className="mt-2 text-3xl font-semibold">Operations overview</h1>
           </div>
-          <p className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700">
-            {user.email ?? user.id}
-          </p>
+          <div className="flex items-center gap-3">
+            <p className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm text-neutral-700">
+              {user.email ?? user.id}
+            </p>
+            <form action={signOutAction}>
+              <button
+                className="rounded-md border border-neutral-300 bg-white px-3 py-2 text-sm font-medium"
+                type="submit"
+              >
+                Sign out
+              </button>
+            </form>
+          </div>
         </div>
 
         <Suspense fallback={<MetricsSkeleton />}>

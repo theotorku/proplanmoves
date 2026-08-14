@@ -1,3 +1,5 @@
+import { formatCents as money } from "@/lib/money";
+
 /**
  * Pure KPI arithmetic. Every rate here can be asked for with an empty
  * denominator on a quiet week, so each one has a defined answer rather than a
@@ -41,11 +43,7 @@ export function formatPercent(value: number | null): string {
 }
 
 export function formatCents(cents: number): string {
-  return new Intl.NumberFormat("en-US", {
-    style: "currency",
-    currency: "USD",
-    maximumFractionDigits: 0
-  }).format(cents / 100);
+  return money(cents, { whole: true });
 }
 
 /** The window every "last 30 days" figure is measured over. */

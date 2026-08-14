@@ -6,12 +6,8 @@ import { getJobForQuote } from "@/domains/jobs/service";
 import { getQuote } from "@/domains/quotes/service";
 import { isPastExpiry, isQuoteEditable } from "@/domains/quotes/status";
 import { JobPanel } from "./job-panel";
-import {
-  formatCents,
-  QuoteLineItemsEditor,
-  QuoteStatusForm,
-  QuoteTermsForm
-} from "./quote-forms";
+import { formatCents } from "@/lib/money";
+import { QuoteLineItemsEditor, QuoteStatusForm, QuoteTermsForm } from "./quote-forms";
 
 export const dynamic = "force-dynamic";
 

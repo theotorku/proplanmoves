@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(112);
+select plan(135);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.customers'::regclass),
@@ -1702,6 +1702,292 @@ select is(
   ),
   'CONFLICT',
   'a second owner bootstrap is rejected'
+);
+
+-- Row-level security, checked as the `authenticated` role rather than as the
+-- superuser the rest of this file runs as. Under postgres, RLS is bypassed and
+-- these reads would all succeed regardless of policy.
+insert into auth.users (
+  id,
+  aud,
+  role,
+  email,
+  encrypted_password,
+  email_confirmed_at,
+  raw_app_meta_data,
+  raw_user_meta_data,
+  created_at,
+  updated_at
+)
+values (
+  '10000000-0000-4000-8000-000000000006',
+  'authenticated',
+  'authenticated',
+  'stranger-test@example.com',
+  '',
+  now(),
+  '{}'::jsonb,
+  '{}'::jsonb,
+  now(),
+  now()
+);
+
+insert into public.profiles (id, full_name)
+values ('10000000-0000-4000-8000-000000000006', 'Signed In Stranger');
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000006',
+  true
+);
+set local role authenticated;
+
+select is(
+  (select count(*)::integer from public.leads),
+  0,
+  'a signed-in user with no staff role sees no leads'
+);
+select is(
+  (select count(*)::integer from public.customers),
+  0,
+  'a signed-in user with no staff role sees no customers'
+);
+select is(
+  (select count(*)::integer from public.quotes),
+  0,
+  'a signed-in user with no staff role sees no quotes'
+);
+select is(
+  (select count(*)::integer from public.jobs),
+  0,
+  'a signed-in user with no staff role sees no jobs'
+);
+select is(
+  (select count(*)::integer from public.estimates),
+  0,
+  'a signed-in user with no staff role sees no estimates'
+);
+select throws_ok(
+  $$
+    insert into public.leads (customer_id, move_type)
+    values ('20000000-0000-4000-8000-000000000001', 'residential')
+  $$,
+  '42501',
+  null,
+  'a signed-in user with no staff role cannot insert a lead'
+);
+
+reset role;
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000003',
+  true
+);
+set local role authenticated;
+
+select ok(
+  (select count(*) from public.leads) > 0,
+  'a viewer can read the lead queue'
+);
+select is(
+  (select count(*)::integer from public.audit_events),
+  0,
+  'a viewer cannot read the audit trail'
+);
+
+reset role;
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000004',
+  true
+);
+set local role authenticated;
+
+select is(
+  (select count(*)::integer from public.jobs),
+  0,
+  'an estimator cannot read dispatch jobs'
+);
+
+reset role;
+
+-- Negative authorization: every protected mutation refuses a read-only role.
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000003',
+  true
+);
+
+select throws_ok(
+  $$ select public.transition_lead_status('40000000-0000-4000-8000-000000000003', 'won', 'contacting', null) $$,
+  '42501',
+  'Not authorized to update leads.',
+  'a viewer cannot change a lead status'
+);
+select throws_ok(
+  $$ select public.add_lead_note_with_activity('40000000-0000-4000-8000-000000000003', 'Viewer note') $$,
+  '42501',
+  'Not authorized to add lead notes.',
+  'a viewer cannot add a lead note'
+);
+select throws_ok(
+  $$ select public.assign_lead('40000000-0000-4000-8000-000000000003', null, '10000000-0000-4000-8000-000000000003') $$,
+  '42501',
+  'Not authorized to assign leads.',
+  'a viewer cannot assign a lead'
+);
+select throws_ok(
+  $$
+    select public.review_estimate(
+      (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'approved',
+      'rejected',
+      'no'
+    )
+  $$,
+  '42501',
+  'Not authorized to review estimates.',
+  'a viewer cannot review an estimate'
+);
+select throws_ok(
+  $$
+    select public.update_estimate_line_item(
+      (
+        select li.id from public.estimate_line_items li
+        join public.estimates e on e.id = li.estimate_id
+        where e.lead_id = '40000000-0000-4000-8000-000000000003'
+        limit 1
+      ),
+      1,
+      100
+    )
+  $$,
+  '42501',
+  'Not authorized to edit estimates.',
+  'a viewer cannot edit estimate amounts'
+);
+select throws_ok(
+  $$
+    select public.create_quote_from_estimate(
+      (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000003'),
+      null,
+      'terms-v1'
+    )
+  $$,
+  '42501',
+  'Not authorized to create quotes.',
+  'a viewer cannot create a quote'
+);
+select throws_ok(
+  $$
+    select public.transition_quote_status(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003' order by reference desc limit 1),
+      'accepted',
+      'cancelled',
+      'no'
+    )
+  $$,
+  '42501',
+  'Not authorized to update quotes.',
+  'a viewer cannot change a quote status'
+);
+select throws_ok(
+  $$
+    select public.update_quote_terms(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003' order by reference desc limit 1),
+      0, 0, 0, null, null
+    )
+  $$,
+  '42501',
+  'Not authorized to edit quotes.',
+  'a viewer cannot change quote terms'
+);
+select throws_ok(
+  $$
+    select public.create_job_from_quote(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000003' order by reference desc limit 1),
+      null, null, null
+    )
+  $$,
+  '42501',
+  'Not authorized to create jobs.',
+  'a viewer cannot book a job'
+);
+select throws_ok(
+  $$
+    select public.schedule_job(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      current_date + 1, '08:00', '10:00'
+    )
+  $$,
+  '42501',
+  'Not authorized to schedule jobs.',
+  'a viewer cannot schedule a job'
+);
+select throws_ok(
+  $$
+    select public.transition_job_status(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'completed',
+      'cancelled',
+      'no'
+    )
+  $$,
+  '42501',
+  'Not authorized to update jobs.',
+  'a viewer cannot change a job status'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000005',
+  true
+);
+
+select throws_ok(
+  $$
+    select public.create_quote_from_estimate(
+      (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000003'),
+      null,
+      'terms-v1'
+    )
+  $$,
+  '42501',
+  'Not authorized to create quotes.',
+  'a dispatcher cannot create a quote'
+);
+select throws_ok(
+  $$
+    select public.review_estimate(
+      (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000003'),
+      'approved',
+      'rejected',
+      'no'
+    )
+  $$,
+  '42501',
+  'Not authorized to review estimates.',
+  'a dispatcher cannot review an estimate'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000004',
+  true
+);
+
+select throws_ok(
+  $$
+    select public.schedule_job(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000003'),
+      current_date + 1, '08:00', '10:00'
+    )
+  $$,
+  '42501',
+  'Not authorized to schedule jobs.',
+  'an estimator cannot schedule a job'
 );
 
 select * from finish();

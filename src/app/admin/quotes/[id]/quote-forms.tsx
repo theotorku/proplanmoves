@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState } from "react";
+import { formatCents } from "@/lib/money";
 import type { QuoteLineItem, QuoteSummary } from "@/domains/quotes/service";
 import { isPastExpiry, type QuoteStatus } from "@/domains/quotes/status";
 import {
@@ -11,12 +12,6 @@ import {
 } from "../actions";
 
 const initialState: QuoteActionState = {};
-
-const money = new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" });
-
-export function formatCents(cents: number) {
-  return money.format(cents / 100);
-}
 
 export function QuoteLineItemsEditor({
   quote,
