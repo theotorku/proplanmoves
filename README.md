@@ -43,21 +43,34 @@ The first release supports local residential, apartment, office, labor-only, and
 - `COMPETITOR_ANALYSIS.md` — market comparison notes
 - `LESSONS_LEARNED.md` — implementation learnings
 
-## Required commands
-
-Codex should establish and document these commands:
+## Local setup
 
 ```bash
 npm install
+npm run db:start          # local Supabase (Docker required)
+npm run db:reset          # apply migrations and seed
+npm run env:local         # write .env.local from the running stack
 npm run dev
+```
+
+`npm run env:local` reads the keys from the stack that is actually running, so
+the file cannot drift from it. It never overwrites an existing `.env.local`
+unless you pass `--force`.
+
+To sign in, create an operator: add a user in Supabase Studio (or via the auth
+admin API) whose email matches `BOOTSTRAP_OWNER_EMAIL`, then visit
+`/admin/bootstrap` to grant the first owner role.
+
+## Commands
+
+```bash
 npm run lint
 npm run typecheck
-npm run test
-npm run db:start
-npm run db:reset
-npm run test:db
-npm run test:e2e
+npm run test              # unit tests
+npm run test:db           # pgTAP against the local stack
+npm run test:e2e          # Playwright, including the full workflow and a11y scans
 npm run build
+npm run smoke -- https://app.example.com   # post-deploy checks
 ```
 
 ## Initial success criteria

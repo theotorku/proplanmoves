@@ -12,7 +12,9 @@
     "db:reset": "supabase db reset",
     "test:db": "supabase test db",
     "db:stop": "supabase stop",
-    "test:e2e": "node e2e/run-playwright.mjs"
+    "test:e2e": "node e2e/run-playwright.mjs",
+    "env:local": "node scripts/write-local-env.mjs",
+    "smoke": "node scripts/production-smoke.mjs"
   },
   "dependencies": {
     "@supabase/ssr": "0.7.0",
@@ -23,6 +25,7 @@
     "zod": "^4.3.6"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.13.0",
     "@playwright/test": "^1.58.0",
     "@tailwindcss/postcss": "^4.1.18",
     "@types/node": "^24.10.0",

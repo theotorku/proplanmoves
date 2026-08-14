@@ -3,6 +3,7 @@
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { createSupabaseServerClient } from "@/domains/auth/server";
+import { logger } from "@/lib/logger";
 
 export type LoginActionState = {
   message?: string;
@@ -35,6 +36,9 @@ export async function signInAction(
   });
 
   if (error) {
+    // Recorded without the address: Supabase Auth already keeps the detailed
+    // attempt log, and this file should not become a list of staff emails.
+    logger.warn("staff sign-in rejected");
     return { message: "Those credentials did not match an account." };
   }
 

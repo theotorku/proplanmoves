@@ -73,11 +73,19 @@ npm run typecheck
 npm run test
 npm run db:start
 npm run db:reset
+npm run env:local
 npm run test:db
+npm run test:e2e
 npm run build
 ```
 
-Run E2E tests for release candidates and critical workflow changes.
+CI runs all of these on every pull request, E2E included: the workflow spans
+nine roles-and-status transitions, and it has already caught a server/client
+boundary bug that unit tests and typecheck both passed.
+
+Database tests cover negative authorization for every protected mutation and
+verify RLS as the `authenticated` role rather than as the superuser, which
+bypasses policies entirely.
 
 ## Fixtures
 

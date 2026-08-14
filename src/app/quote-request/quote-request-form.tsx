@@ -107,24 +107,8 @@ export function QuoteRequestForm() {
       </section>
 
       <section className="grid gap-4 md:grid-cols-2">
-        <div className="space-y-3">
-          <h2 className="font-semibold">Origin</h2>
-          <input className="w-full rounded-md border border-neutral-300 px-3 py-2" name="originLine1" placeholder="Street address" required />
-          <input className="w-full rounded-md border border-neutral-300 px-3 py-2" name="originCity" placeholder="City" required />
-          <input className="w-full rounded-md border border-neutral-300 px-3 py-2" maxLength={2} name="originState" placeholder="State" required />
-          <input className="w-full rounded-md border border-neutral-300 px-3 py-2" name="originPostalCode" placeholder="Postal code" required />
-          <input className="w-full rounded-md border border-neutral-300 px-3 py-2" min={0} name="originFloor" placeholder="Floor" type="number" />
-          <label className="flex items-center gap-2"><input name="originHasElevator" type="checkbox" /> Elevator available</label>
-        </div>
-        <div className="space-y-3">
-          <h2 className="font-semibold">Destination</h2>
-          <input className="w-full rounded-md border border-neutral-300 px-3 py-2" name="destinationLine1" placeholder="Street address" required />
-          <input className="w-full rounded-md border border-neutral-300 px-3 py-2" name="destinationCity" placeholder="City" required />
-          <input className="w-full rounded-md border border-neutral-300 px-3 py-2" maxLength={2} name="destinationState" placeholder="State" required />
-          <input className="w-full rounded-md border border-neutral-300 px-3 py-2" name="destinationPostalCode" placeholder="Postal code" required />
-          <input className="w-full rounded-md border border-neutral-300 px-3 py-2" min={0} name="destinationFloor" placeholder="Floor" type="number" />
-          <label className="flex items-center gap-2"><input name="destinationHasElevator" type="checkbox" /> Elevator available</label>
-        </div>
+        <AddressFields legend="Origin" prefix="origin" />
+        <AddressFields legend="Destination" prefix="destination" />
       </section>
 
       <label>
@@ -136,5 +120,46 @@ export function QuoteRequestForm() {
         {isPending ? "Submitting..." : "Request a quote"}
       </button>
     </form>
+  );
+}
+
+/**
+ * Every field carries a real label rather than relying on its placeholder. A
+ * placeholder is announced once and then vanishes as soon as the customer types,
+ * which leaves anyone reviewing their answers — on a screen reader or not —
+ * without a name for the box they are looking at.
+ */
+function AddressFields({ legend, prefix }: { legend: string; prefix: "origin" | "destination" }) {
+  const fields = [
+    { name: "Line1", label: "Street address", required: true, type: "text" as const },
+    { name: "City", label: "City", required: true, type: "text" as const },
+    { name: "State", label: "State", required: true, type: "text" as const },
+    { name: "PostalCode", label: "Postal code", required: true, type: "text" as const },
+    { name: "Floor", label: "Floor", required: false, type: "number" as const }
+  ];
+
+  return (
+    <fieldset className="space-y-3">
+      <legend className="font-semibold">{legend}</legend>
+      {fields.map((field) => (
+        <label className="block" key={field.name}>
+          <span className="text-sm font-medium">
+            {legend} {field.label.toLowerCase()}
+          </span>
+          <input
+            className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2"
+            maxLength={field.name === "State" ? 2 : undefined}
+            min={field.type === "number" ? 0 : undefined}
+            name={`${prefix}${field.name}`}
+            placeholder={field.label}
+            required={field.required}
+            type={field.type}
+          />
+        </label>
+      ))}
+      <label className="flex items-center gap-2">
+        <input name={`${prefix}HasElevator`} type="checkbox" /> Elevator available
+      </label>
+    </fieldset>
   );
 }

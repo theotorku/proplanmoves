@@ -3,6 +3,7 @@
 import { submitPublicLeadIntake } from "@/domains/leads/intake";
 import { checkRateLimit } from "@/lib/rate-limit";
 import { headers } from "next/headers";
+import { describeError, logger } from "@/lib/logger";
 
 export type QuoteRequestActionState = {
   message?: string;
@@ -56,13 +57,18 @@ export async function submitQuoteRequestAction(
       windowMs: 15 * 60 * 1000
     });
   } catch (error) {
-    console.error("Public quote request rate limit failed.", error);
+    // Failing closed here is deliberate: without a working limiter the public
+    // form is an open door to the service-role intake path.
+    logger.error("public intake rate limiter unavailable", { reason: describeError(error) });
     return {
       message: "Quote requests are temporarily unavailable. Please try again shortly."
     };
   }
 
   if (!rateLimit.allowed) {
+    logger.warn("public intake rate limited", {
+      retryAfterSeconds: rateLimit.retryAfterSeconds
+    });
     return {
       message: `Too many quote requests. Please try again in ${rateLimit.retryAfterSeconds} seconds.`
     };

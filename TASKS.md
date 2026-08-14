@@ -78,11 +78,13 @@
 
 ## Epic 8 — Release hardening
 
-- [ ] E2E happy path
+- [x] E2E happy path
 - [x] Static migration security tests
-- [ ] Negative authorization tests
-- [ ] RLS verification
-- [ ] Accessibility checks
-- [ ] Error and logging review
-- [ ] Production smoke test
-- [ ] Documentation verification
+- [x] Negative authorization tests
+- [x] RLS verification
+- [x] Accessibility checks
+- [x] Error and logging review
+- [x] Production smoke test script
+- [x] Documentation verification
+- [ ] Run the smoke test against the first real deployment
+- [ ] Content Security Policy beyond frame-ancestors (needs a nonce strategy)

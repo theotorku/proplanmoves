@@ -20,6 +20,9 @@ jobs:
       - run: npm run test
       - run: npm run db:start
       - run: npm run db:reset
+      # The dev server and E2E suite need real local keys; generate them from
+      # the stack that is actually running rather than a stale snapshot.
+      - run: node scripts/write-local-env.mjs --force
       - run: npm run test:db
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e

@@ -33,14 +33,14 @@ async function submitPublicQuoteRequest(page: Page): Promise<string> {
   await page.locator('input[name="email"]').fill(`e2e-customer-${stamp}@example.com`);
   await page.locator('select[name="moveType"]').selectOption("residential");
   await page.locator('input[name="bedroomCount"]').fill("2");
-  await page.locator('input[name="originLine1"]').fill("100 Main St");
-  await page.locator('input[name="originCity"]').fill("Chicago");
-  await page.locator('input[name="originState"]').fill("IL");
-  await page.locator('input[name="originPostalCode"]').fill("60601");
-  await page.locator('input[name="destinationLine1"]').fill("200 Lake St");
-  await page.locator('input[name="destinationCity"]').fill("Evanston");
-  await page.locator('input[name="destinationState"]').fill("IL");
-  await page.locator('input[name="destinationPostalCode"]').fill("60201");
+  await page.getByLabel("Origin street address").fill("100 Main St");
+  await page.getByLabel("Origin city").fill("Chicago");
+  await page.getByLabel("Origin state").fill("IL");
+  await page.getByLabel("Origin postal code").fill("60601");
+  await page.getByLabel("Destination street address").fill("200 Lake St");
+  await page.getByLabel("Destination city").fill("Evanston");
+  await page.getByLabel("Destination state").fill("IL");
+  await page.getByLabel("Destination postal code").fill("60201");
 
   await page.getByRole("button", { name: "Request a quote" }).click();
 
