@@ -43,6 +43,8 @@ export function canTransitionQuote(params: {
   expiresOn?: string | null;
   /** ISO calendar date; required to judge an expiry. */
   today?: string;
+  /** True when a job exists for this quote that is not cancelled. */
+  hasLiveJob?: boolean;
 }): QuoteTransitionDecision {
   const { currentStatus, nextStatus, actorRoles, reason } = params;
 
@@ -78,6 +80,15 @@ export function canTransitionQuote(params: {
         reason: "Cancelling an accepted quote requires a reason."
       };
     }
+  }
+
+  // Cancelling the commercial record while dispatch still has a crew committed
+  // leaves the two halves of the business disagreeing.
+  if (nextStatus === "cancelled" && params.hasLiveJob) {
+    return {
+      allowed: false,
+      reason: "Cancel the booked job first so dispatch and the customer record agree."
+    };
   }
 
   if (nextStatus === "rejected" && !reason?.trim()) {

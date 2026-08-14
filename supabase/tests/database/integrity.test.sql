@@ -2,7 +2,7 @@ begin;
 
 create extension if not exists pgtap with schema extensions;
 
-select plan(135);
+select plan(143);
 
 select ok(
   (select relrowsecurity from pg_class where oid = 'public.customers'::regclass),
@@ -1644,6 +1644,155 @@ select is(
   ),
   'JOB_CLOSED',
   'a completed job cannot be rescheduled'
+);
+select is(
+  (
+    public.transition_quote_status(
+      (
+        select id from public.quotes
+        where lead_id = '40000000-0000-4000-8000-000000000003'
+        order by reference desc limit 1
+      ),
+      'accepted',
+      'cancelled',
+      'Customer changed their mind'
+    )->>'code'
+  ),
+  'JOB_EXISTS',
+  'a quote cannot be cancelled while its job is still live'
+);
+
+-- The other half of that rule, plus the past-date guard, on a second chain:
+-- approve the remaining estimate, quote it, book it, then unwind it in order.
+select public.review_estimate(
+  (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000002'),
+  'generated',
+  'under_review',
+  null
+);
+select public.review_estimate(
+  (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000002'),
+  'under_review',
+  'approved',
+  null
+);
+select public.create_quote_from_estimate(
+  (select id from public.estimates where lead_id = '40000000-0000-4000-8000-000000000002'),
+  null,
+  'terms-v1'
+);
+select public.transition_quote_status(
+  (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000002'),
+  'draft',
+  'ready',
+  null
+);
+select public.transition_quote_status(
+  (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000002'),
+  'ready',
+  'sent',
+  null
+);
+select public.transition_quote_status(
+  (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000002'),
+  'sent',
+  'accepted',
+  null
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000005',
+  true
+);
+
+select is(
+  (
+    public.create_job_from_quote(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000002'),
+      (current_date - 1),
+      '08:00',
+      '10:00'
+    )->>'code'
+  ),
+  'SCHEDULE_IN_PAST',
+  'a dispatcher cannot book a job into the past'
+);
+select is(
+  (
+    select count(*)::integer
+    from public.jobs
+    where lead_id = '40000000-0000-4000-8000-000000000002'
+  ),
+  0,
+  'a refused past-dated booking creates no job'
+);
+select is(
+  (
+    public.create_job_from_quote(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000002'),
+      null,
+      null,
+      null
+    )->>'created'
+  )::boolean,
+  true,
+  'the same quote books once the date is left open'
+);
+select is(
+  (
+    public.schedule_job(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000002'),
+      (current_date - 1),
+      '08:00',
+      '10:00'
+    )->>'code'
+  ),
+  'SCHEDULE_IN_PAST',
+  'a dispatcher cannot reschedule a job into the past'
+);
+
+select set_config(
+  'request.jwt.claim.sub',
+  '10000000-0000-4000-8000-000000000001',
+  true
+);
+
+select is(
+  (
+    public.schedule_job(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000002'),
+      (current_date - 1),
+      '08:00',
+      '10:00'
+    )->>'status'
+  ),
+  'scheduled',
+  'an admin can record a historical job date'
+);
+select is(
+  (
+    public.transition_job_status(
+      (select id from public.jobs where lead_id = '40000000-0000-4000-8000-000000000002'),
+      'scheduled',
+      'cancelled',
+      'Customer cancelled the move'
+    )->>'ok'
+  )::boolean,
+  true,
+  'the job can be cancelled first'
+);
+select is(
+  (
+    public.transition_quote_status(
+      (select id from public.quotes where lead_id = '40000000-0000-4000-8000-000000000002'),
+      'accepted',
+      'cancelled',
+      'Customer cancelled the move'
+    )->>'ok'
+  )::boolean,
+  true,
+  'the quote can be cancelled once its job is cancelled'
 );
 
 insert into auth.users (

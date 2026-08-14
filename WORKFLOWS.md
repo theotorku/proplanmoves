@@ -47,6 +47,9 @@ Rules:
 - Expiration is date-driven but must be recorded explicitly: the transition is
   refused until the quote is actually past its valid-until date.
 - Accepted quotes cannot be cancelled without owner/admin override and a reason.
+- A quote cannot be cancelled while a job exists for it that is not cancelled.
+  Cancel the job first, so the commercial record and dispatch never disagree.
+  The lead stays `won`; reopening it is a separate, deliberate decision.
 - A quote is editable while `draft` or `ready`. Once sent, its numbers are what
   the customer is looking at, so changes mean issuing a new quote.
 - Recording a rejection requires a reason. The lead stays open so it can be
@@ -67,6 +70,9 @@ Rules:
   reason.
 - Cancellation requires a reason.
 - Scheduling requires a date and both ends of an arrival window.
+- A job cannot be dated before today, because a past-dated job drops off the
+  upcoming board and is easily missed. Owners and admins may record a historical
+  date, and the audit event marks it as backdated.
 - Changing the date or window of a `confirmed` job returns it to `scheduled`,
   because the customer confirmed the old window.
 - Unscheduling clears the date and window.

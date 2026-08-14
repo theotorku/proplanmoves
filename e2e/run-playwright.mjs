@@ -1,14 +1,39 @@
 import { spawn, spawnSync } from "node:child_process";
-import { rm } from "node:fs/promises";
+import { existsSync } from "node:fs";
 import { join } from "node:path";
 
+/**
+ * Runs the E2E suite against a production server.
+ *
+ * The suite used to drive `next dev` with a freshly deleted .next, which meant
+ * the first navigation to each route paid for compilation. That is invisible
+ * locally on a warm cache and shows up in CI as an intermittent timeout on
+ * whichever assertion happens to land first — a release failure that says
+ * nothing about the product. A built server also matches what operators run.
+ */
 const port = 3000;
 const baseUrl = `http://127.0.0.1:${port}`;
+const buildId = join(process.cwd(), ".next", "BUILD_ID");
+const forceRebuild = process.argv.includes("--rebuild");
 
-await rm(join(process.cwd(), ".next"), { force: true, recursive: true });
 freePort();
 
-const server = spawn(`npx next dev -H 127.0.0.1 -p ${port}`, {
+if (forceRebuild || !existsSync(buildId)) {
+  console.log("Building the application for the end-to-end run...");
+  const build = spawnSync("npx next build", {
+    shell: true,
+    stdio: "inherit",
+    windowsHide: true
+  });
+
+  if (build.status !== 0) {
+    process.exit(build.status ?? 1);
+  }
+} else {
+  console.log("Reusing the existing production build.");
+}
+
+const server = spawn(`npx next start -H 127.0.0.1 -p ${port}`, {
   shell: true,
   stdio: ["ignore", "pipe", "pipe"],
   windowsHide: true
@@ -32,11 +57,13 @@ async function waitForServer() {
         return;
       }
     } catch {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      // Not listening yet.
     }
+
+    await new Promise((resolve) => setTimeout(resolve, 500));
   }
 
-  throw new Error(`Next dev server did not become ready.\n${serverOutput}`);
+  throw new Error(`Next server did not become ready.\n${serverOutput}`);
 }
 
 function stopServer() {
@@ -45,7 +72,7 @@ function stopServer() {
   }
 
   if (process.platform === "win32") {
-    // next dev runs under a shell, so the tree has to go, not just the shell.
+    // next start runs under a shell, so the tree has to go, not just the shell.
     spawnSync("taskkill", ["/pid", String(server.pid), "/t", "/f"], {
       stdio: "ignore",
       windowsHide: true

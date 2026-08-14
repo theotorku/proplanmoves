@@ -24,6 +24,8 @@ export default async function JobDetailPage({ params }: PageProps) {
   }
 
   const canDispatch = hasAnyRole(roles, ["owner", "admin", "dispatcher"]);
+  const canBackdate = hasAnyRole(roles, ["owner", "admin"]);
+  const today = new Date().toISOString().slice(0, 10);
   const editable = canDispatch && isJobOpen(job.status);
 
   return (
@@ -117,7 +119,7 @@ export default async function JobDetailPage({ params }: PageProps) {
               <div className="rounded-md border border-neutral-300 bg-white p-4">
                 <h2 className="font-semibold">Schedule</h2>
                 <div className="mt-3">
-                  <JobScheduleForm job={job} />
+                  <JobScheduleForm canBackdate={canBackdate} job={job} today={today} />
                 </div>
               </div>
             ) : null}

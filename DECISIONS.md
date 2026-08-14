@@ -129,3 +129,15 @@
 **Decision:** Jobs are read and written by owner, admin, and dispatcher; estimators have no access. Moving the lead to `won` happens inside job creation rather than through `transition_lead_status`.  
 **Reason:** WORKFLOWS.md puts the lead's close at the conversion step, but lead transitions are an estimator/manager action a dispatcher cannot perform. Delegating would have forced dispatchers into lead-editing rights they should not have.  
 **Consequence:** The lead move is written inside the conversion with the same activity and audit records the shared function would have produced. Marking a job complete that was never started is an owner/admin correction with a reason, since it contradicts the recorded history.
+
+## ADR-023 — Cancellation unwinds in dispatch order
+
+**Decision:** A quote cannot be cancelled while a job exists for it that is not cancelled. The database refuses with `JOB_EXISTS` and names the job; the quote page hides the control and says why. Cancelling the job first, then the quote, is the supported order.  
+**Reason:** Cancelling the commercial record while a crew is still committed produces a cancelled quote and a scheduled job at the same time — the two halves of the business disagreeing about whether the work is happening. Silently cancelling the job from the quote page would fix the data by overwriting dispatch's record from outside dispatch, which ADR-022 exists to prevent.  
+**Consequence:** Unwinding a booked move takes two deliberate steps, each with its own reason and audit event. The lead stays `won` afterwards: it was won, and whether a cancelled move becomes a lost lead or a rebooking is a judgement an operator makes explicitly.
+
+## ADR-024 — Work cannot be dated into the past by accident
+
+**Decision:** `create_job_from_quote` and `schedule_job` refuse a date before today. Owners and admins may override, and the audit event records `backdated: true`. The date picker enforces the same floor for everyone who cannot override.  
+**Reason:** The upcoming board only shows work from today onward, so a mistyped year silently removes a real move from the schedule everyone works from. Backfilling a historical job is a genuine need, so it is allowed but attributable.  
+**Consequence:** Dispatchers cannot create the failure mode at all. A backdated job is traceable to the manager who recorded it.

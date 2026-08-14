@@ -199,14 +199,18 @@ const decisionLabels: Partial<Record<QuoteStatus, string>> = {
 export function QuoteStatusForm({
   quote,
   today,
-  canOverride
+  canOverride,
+  hasLiveJob
 }: {
   quote: QuoteSummary;
   today: string;
   canOverride: boolean;
+  hasLiveJob: boolean;
 }) {
   const [state, formAction, isPending] = useActionState(transitionQuoteAction, initialState);
-  const nextStatuses = availableTransitions(quote, today, canOverride);
+  const nextStatuses = availableTransitions(quote, today, canOverride).filter(
+    (status) => !(status === "cancelled" && hasLiveJob)
+  );
 
   if (nextStatuses.length === 0) {
     return (
@@ -229,6 +233,11 @@ export function QuoteStatusForm({
         />
       </label>
       {state.message ? <p className="text-sm text-amber-700">{state.message}</p> : null}
+      {hasLiveJob ? (
+        <p className="text-sm text-neutral-600">
+          This quote is booked. Cancel the job first if the move is off.
+        </p>
+      ) : null}
       <div className="flex flex-wrap gap-2">
         {nextStatuses.map((status) => (
           <button

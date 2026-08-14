@@ -132,6 +132,44 @@ describe("canTransitionQuote", () => {
     ).toBe(false);
   });
 
+  it("will not cancel a quote whose job is still live", () => {
+    expect(
+      decide({
+        currentStatus: "accepted",
+        nextStatus: "cancelled",
+        actorRoles: ["owner"],
+        reason: "Customer moved out of area",
+        hasLiveJob: true
+      })
+    ).toEqual({
+      allowed: false,
+      reason: "Cancel the booked job first so dispatch and the customer record agree."
+    });
+  });
+
+  it("cancels once the job has been cancelled", () => {
+    expect(
+      decide({
+        currentStatus: "accepted",
+        nextStatus: "cancelled",
+        actorRoles: ["owner"],
+        reason: "Customer moved out of area",
+        hasLiveJob: false
+      })
+    ).toEqual({ allowed: true });
+  });
+
+  it("blocks cancellation from any status while a job is live", () => {
+    expect(
+      decide({
+        currentStatus: "sent",
+        nextStatus: "cancelled",
+        actorRoles: ["admin"],
+        hasLiveJob: true
+      }).allowed
+    ).toBe(false);
+  });
+
   it("keeps rejected, expired, and cancelled quotes final", () => {
     for (const status of ["rejected", "expired", "cancelled"] as QuoteStatus[]) {
       expect(

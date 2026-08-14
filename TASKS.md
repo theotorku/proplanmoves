@@ -87,4 +87,5 @@
 - [x] Production smoke test script
 - [x] Documentation verification
 - [ ] Run the smoke test against the first real deployment
+- [ ] Decide whether a fully cancelled chain should reopen its won lead
 - [ ] Content Security Policy beyond frame-ancestors (needs a nonce strategy)

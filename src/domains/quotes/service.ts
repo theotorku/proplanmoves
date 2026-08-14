@@ -242,6 +242,7 @@ export async function transitionQuoteStatus(params: {
   expiresOn: string | null;
   actorRoles: readonly RoleCode[];
   today: string;
+  hasLiveJob: boolean;
 }) {
   const decision = canTransitionQuote({
     currentStatus: params.expectedStatus,
@@ -249,7 +250,8 @@ export async function transitionQuoteStatus(params: {
     actorRoles: params.actorRoles,
     reason: params.reason,
     expiresOn: params.expiresOn,
-    today: params.today
+    today: params.today,
+    hasLiveJob: params.hasLiveJob
   });
 
   if (!decision.allowed) {

@@ -10,6 +10,7 @@ import {
   updateQuoteTerms
 } from "@/domains/quotes/service";
 import { quoteStatusSchema } from "@/domains/quotes/status";
+import { getJobForQuote } from "@/domains/jobs/service";
 
 export type QuoteActionState = {
   message?: string;
@@ -129,6 +130,8 @@ export async function transitionQuoteAction(
     return { message: "The quote could not be found." };
   }
 
+  const job = await getJobForQuote(quoteId);
+
   const result = await transitionQuoteStatus({
     quoteId,
     expectedStatus: expectedStatus.data,
@@ -136,7 +139,8 @@ export async function transitionQuoteAction(
     reason,
     expiresOn: quote.expiresOn,
     actorRoles: roles,
-    today: new Date().toISOString().slice(0, 10)
+    today: new Date().toISOString().slice(0, 10),
+    hasLiveJob: Boolean(job) && job?.status !== "cancelled"
   });
 
   if (!result.ok) {

@@ -111,6 +111,7 @@ export default async function QuoteDetailPage({ params }: PageProps) {
                 <div className="mt-3">
                   <QuoteStatusForm
                     canOverride={hasAnyRole(roles, ["owner", "admin"])}
+                    hasLiveJob={Boolean(job) && job?.status !== "cancelled"}
                     quote={quote}
                     today={today}
                   />

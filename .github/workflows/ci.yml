@@ -24,6 +24,8 @@ jobs:
       # the stack that is actually running rather than a stale snapshot.
       - run: node scripts/write-local-env.mjs --force
       - run: npm run test:db
-      - run: npx playwright install --with-deps chromium
-      - run: npm run test:e2e
       - run: npm run build
+      - run: npx playwright install --with-deps chromium
+      # The runner reuses the build above and serves it with `next start`, so
+      # route compilation cannot leak into assertion timeouts.
+      - run: npm run test:e2e

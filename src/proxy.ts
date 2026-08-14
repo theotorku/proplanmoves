@@ -7,9 +7,11 @@ import { getPublicEnv } from "@/lib/env";
  * navigation, a staff session dies mid-shift and the operator is bounced to the
  * sign-in page with a half-finished lead behind them.
  *
+ * This is the Next.js 16 "proxy" convention, which replaces "middleware".
+ *
  * Authorization still belongs to the pages: this only keeps the cookie fresh.
  */
-export async function middleware(request: NextRequest) {
+export default async function proxy(request: NextRequest) {
   let response = NextResponse.next({ request });
   const env = getPublicEnv();
 

@@ -14,7 +14,7 @@ export default defineConfig({
   workers: 1,
   reporter: "line",
   timeout: 60_000,
-  expect: { timeout: 10_000 },
+  expect: { timeout: 15_000 },
   use: {
     baseURL: "http://127.0.0.1:3000",
     trace: "on-first-retry"

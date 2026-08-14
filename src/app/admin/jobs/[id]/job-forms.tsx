@@ -12,7 +12,15 @@ import {
 
 const initialState: JobActionState = {};
 
-export function JobScheduleForm({ job }: { job: JobSummary }) {
+export function JobScheduleForm({
+  job,
+  canBackdate,
+  today
+}: {
+  job: JobSummary;
+  canBackdate: boolean;
+  today: string;
+}) {
   const [state, formAction, isPending] = useActionState(scheduleJobAction, initialState);
 
   return (
@@ -23,6 +31,9 @@ export function JobScheduleForm({ job }: { job: JobSummary }) {
         <input
           className="mt-1 w-full rounded-md border border-neutral-300 px-3 py-2"
           defaultValue={job.scheduledDate ?? ""}
+          // Owners and admins may record a historical job; everyone else is held
+          // to today onward, matching what the database will accept.
+          min={canBackdate ? undefined : today}
           name="scheduledDate"
           required
           type="date"
