@@ -141,3 +141,9 @@
 **Decision:** `create_job_from_quote` and `schedule_job` refuse a date before today. Owners and admins may override, and the audit event records `backdated: true`. The date picker enforces the same floor for everyone who cannot override.  
 **Reason:** The upcoming board only shows work from today onward, so a mistyped year silently removes a real move from the schedule everyone works from. Backfilling a historical job is a genuine need, so it is allowed but attributable.  
 **Consequence:** Dispatchers cannot create the failure mode at all. A backdated job is traceable to the manager who recorded it.
+
+## ADR-025 — Customer-facing DFW site shares the existing intake workflow
+
+**Decision:** The public homepage markets local Dallas–Fort Worth services, with a shared public header/footer and CSS scoped under `.public-site`. Services link to an allowlisted quote-form preset. The existing server action, validation, rate limiting, database intake, and staff authorization remain authoritative.
+**Reason:** Customers need a clear explanation of services and next steps without exposing internal operational language or creating a second intake path. DFW is the owner-confirmed launch region. Trust messaging describes the actual review and scheduling process; unverified ratings, reviews, licenses, insurance, response times, and pricing are not published.
+**Consequence:** The form is grouped into three visible sections, retains values in memory on failure, announces and focuses submission results, and explains that a request is not a booking. Personal details are not persisted in browser storage. Exact address coverage is confirmed by staff; the decorative DFW graphic is not a coverage boundary map. No schema or pricing changes are required.

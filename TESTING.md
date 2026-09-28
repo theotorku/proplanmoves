@@ -97,3 +97,7 @@ Seed:
 - one incomplete-information case
 
 Fixtures must be deterministic and contain no real personal information.
+
+## Public landing page regression coverage
+
+`e2e/app-shell.spec.ts` covers the landing CTA, service preset selection and invalid-preset fallback, expandable FAQs, mobile navigation/overflow, and preservation/focus of submitted values after server validation failure. The existing workflow test exercises real public submission through scheduled-job creation. `e2e/accessibility.spec.ts` scans the homepage and quote form along with internal screens.

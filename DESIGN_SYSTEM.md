@@ -46,3 +46,7 @@ The interface should feel operational, calm, trustworthy, and action-oriented. A
 - Distinguish internal notes from customer-facing notes.
 - Explain preliminary estimates and assumptions.
 - Confirm destructive or irreversible actions.
+
+## Public marketing surfaces
+
+The public site uses navy (#15344b), white, cool light gray (#f2f5f5), and a warm yellow action accent (#f4ce68). Segoe UI/system sans typography, a full-width photographic hero, open service rows, and native FAQ disclosures distinguish it from the operator application. Public CSS is scoped beneath `.public-site`. Motion is limited to the hero entrance, sticky navigation, and interaction feedback, and respects reduced-motion preferences. DFW illustrations are decorative, not geographic coverage maps.

@@ -76,3 +76,11 @@ npm run smoke -- https://app.example.com   # post-deploy checks
 ## Initial success criteria
 
 The release is successful when a public visitor can submit a request and an authenticated operator can convert it into a scheduled job using real database records, enforced permissions, deterministic calculations, and a passing end-to-end test.
+
+## Customer-facing website
+
+The homepage presents local Dallas–Fort Worth services, the quote-to-scheduling process, service coverage, and FAQs. `/quote-request?service=packing_service` (and the other supported move types) preselects a service; unknown values fall back to residential. The public form preserves entered details after failed submissions and submits through the existing protected intake pipeline. A confirmation reference acknowledges the request, not a booking.
+
+Public styles are scoped in `src/app/public.css`; internal screens keep their existing styling. Update the coverage copy when the actual service region changes. Add credentials or testimonials only after the business verifies them. The locally hosted illustrative hero image is documented in `public/images/README.md`.
+
+The quote form waits for client initialization before accepting input to prevent pre-hydration edits from being lost. JavaScript is required; users with scripting disabled receive an explicit message.
