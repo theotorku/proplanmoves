@@ -34,3 +34,5 @@ Create a typed environment module that validates required variables on startup. 
 ## Local setup
 
 Provide `.env.example` containing names and safe descriptions only. Never include live secrets.
+
+Use Node 22.12+ (Node 22 LTS) for local development, CI, and deployment. The dependency upgrade includes a matching Next.js ESLint configuration and security-patched image processing and ID generation packages.

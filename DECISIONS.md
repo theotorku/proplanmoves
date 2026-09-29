@@ -147,3 +147,11 @@
 **Decision:** The public homepage markets local Dallas–Fort Worth services, with a shared public header/footer and CSS scoped under `.public-site`. Services link to an allowlisted quote-form preset. The existing server action, validation, rate limiting, database intake, and staff authorization remain authoritative.
 **Reason:** Customers need a clear explanation of services and next steps without exposing internal operational language or creating a second intake path. DFW is the owner-confirmed launch region. Trust messaging describes the actual review and scheduling process; unverified ratings, reviews, licenses, insurance, response times, and pricing are not published.
 **Consequence:** The form is grouped into three visible sections, retains values in memory on failure, announces and focuses submission results, and explains that a request is not a booking. Personal details are not persisted in browser storage. Exact address coverage is confirmed by staff; the decorative DFW graphic is not a coverage boundary map. No schema or pricing changes are required.
+
+## ADR-026 — Pin security fixes and make release checks repeatable
+
+**Decision:** Upgrade Next.js and its ESLint config together to 16.3.6, pin Sharp to 0.35.4, and pin PostCSS's Nanoid dependency to 3.3.18 through a scoped override. Keep the existing PostCSS 8.5.23 override. CI rejects high/critical production dependency advisories using npm audit.
+**Reason:** The previous installed versions matched remote-code-execution/image-decoding and zero-size ID-generator advisories. Scoped dependency updates avoid unrelated framework or application rewrites.
+**Consequence:** The lockfile captures the patched dependency tree. Database bootstrap tests isolate owner grants only within their rollback transaction, and the E2E dashboard assertion identifies the job created by that run. Local release checks can run after prior E2E runs without deleting user data or weakening production authorization.
+
+Security maintenance also updates Vitest to 4.1.11 and the affected JS-YAML/brace-expansion transitive dependencies. The supported development and deployment runtime is Node 22.12 or later within Node 22; CI uses the latest Node 22 patch. The previous Node 20.11 CI image could not start the Vite-based test runner (`node:util.styleText` was unavailable).

@@ -101,3 +101,25 @@ Fixtures must be deterministic and contain no real personal information.
 ## Public landing page regression coverage
 
 `e2e/app-shell.spec.ts` covers the landing CTA, service preset selection and invalid-preset fallback, expandable FAQs, mobile navigation/overflow, and preservation/focus of submitted values after server validation failure. The existing workflow test exercises real public submission through scheduled-job creation. `e2e/accessibility.spec.ts` scans the homepage and quote form along with internal screens.
+
+## Dependency security and repeatable local runs
+
+Run `npm audit --omit=dev --audit-level=high` with the release checks; CI enforces this gate after installation. Review the full `npm audit` report as well when updating dependencies.
+
+The pgTAP first-owner scenario temporarily removes owner grants inside the suite's existing BEGIN/ROLLBACK transaction. Existing local owner assignments are restored afterward, so `npm run test:db` can also run after E2E has bootstrapped an operator. Run this suite only against a development/test database. The E2E dashboard check targets the newly created job so previous scheduled test jobs do not make its selector ambiguous.
+
+When changing Vitest versions, npm 11.4.1 and 10.9.4 can fail during peer resolution with `Cannot read properties of null (reading edgesOut)`. This maintenance update was resolved with `npx --yes npm@11.20.0 install`, without bypassing peer checks. Normal CI uses `npm ci` with the committed lockfile.
+
+## Security maintenance verification — 2026-09-28
+
+Verified after a clean `npm ci` install on Node 22.13.1:
+
+- Full `npm audit` and production-only audit: zero reported vulnerabilities.
+- Lint and TypeScript checks: passed.
+- Vitest 4.1.11: 116 tests passed across 15 files.
+- Database pgTAP: 143 tests passed, including authorization/RLS and owner bootstrap; existing owner count remained unchanged after rollback.
+- Next.js 16.3.6 production build: passed.
+- Playwright against the production build: all 7 tests passed, including accessibility, mobile navigation, validation recovery, and request-to-scheduled-job conversion with existing jobs present.
+- Local production smoke: 5 checks passed; HTTPS transport check skipped because the target was localhost.
+
+Hosted HTTPS, target database configuration, and post-deploy smoke verification remain deployment checks. Vitest reports a non-blocking notice about a future Vite native config-loader default; current tests pass with the existing configuration.

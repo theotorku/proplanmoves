@@ -1820,6 +1820,12 @@ values (
   now()
 );
 
+-- Exercise first-owner bootstrap independently of owners created by local E2E
+-- runs. These fixture changes are inside this file's BEGIN/ROLLBACK transaction:
+-- existing grants are restored when the suite finishes (or the connection ends).
+delete from public.profile_roles
+where role_id in (select id from public.roles where code = 'owner');
+
 select is(
   (
     public.bootstrap_initial_owner(

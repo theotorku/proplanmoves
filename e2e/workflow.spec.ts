@@ -21,7 +21,7 @@ test("a public request becomes a scheduled job", async ({ page }) => {
   const jobUrl = page.url();
 
   await scheduleJob(page, jobUrl);
-  await expectDashboardReflectsTheJob(page);
+  await expectDashboardReflectsTheJob(page, jobUrl);
 });
 
 async function submitPublicQuoteRequest(page: Page): Promise<string> {
@@ -134,14 +134,14 @@ async function scheduleJob(page: Page, jobUrl: string) {
   await expect(page.getByText(isoDate)).toBeVisible();
 }
 
-async function expectDashboardReflectsTheJob(page: Page) {
+async function expectDashboardReflectsTheJob(page: Page, jobUrl: string) {
   await page.goto("/admin/dashboard", { waitUntil: "domcontentloaded" });
 
   await expect(page.getByRole("heading", { name: "Upcoming jobs" })).toBeVisible();
   await expect(
-    page.getByRole("region", { name: "Upcoming jobs" }).getByRole("link", {
-      name: /^JOB-\d{4}-\d{5}$/
-    })
+    page.getByRole("region", { name: "Upcoming jobs" }).locator(
+      `a[href="${new URL(jobUrl).pathname}"]`
+    )
   ).toBeVisible();
 
   await expect(page.getByText("Booked revenue")).toBeVisible();
