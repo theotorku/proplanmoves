@@ -155,3 +155,9 @@
 **Consequence:** The lockfile captures the patched dependency tree. Database bootstrap tests isolate owner grants only within their rollback transaction, and the E2E dashboard assertion identifies the job created by that run. Local release checks can run after prior E2E runs without deleting user data or weakening production authorization.
 
 Security maintenance also updates Vitest to 4.1.11 and the affected JS-YAML/brace-expansion transitive dependencies. The supported development and deployment runtime is Node 22.12 or later within Node 22; CI uses the latest Node 22 patch. The previous Node 20.11 CI image could not start the Vite-based test runner (`node:util.styleText` was unavailable).
+
+## ADR-027 — Preserve hero contrast during entrance motion
+
+**Decision:** Animate only the hero's vertical position, keeping its text and quote CTA fully opaque throughout the entrance.
+**Reason:** The opacity fade caused the homepage accessibility check to detect insufficient button contrast during animation on GitHub CI.
+**Consequence:** The entrance motion and reduced-motion support remain. Accessibility checks continue to scan immediately without delays or disabled contrast rules.

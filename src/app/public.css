@@ -147,7 +147,8 @@
 .success-next { border-top: 1px solid #cbd7df; padding-top: 25px; margin-block: 25px; }
 .success-next h3 { font-size: 18px; font-weight: 650; }
 .success-next p { font-size: 14px; color: var(--move-muted); margin-top: 14px; }
-@keyframes hero-arrive { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+/* Keep text and CTA contrast intact throughout the entrance animation. */
+@keyframes hero-arrive { from { transform: translateY(15px); } to { transform: translateY(0); } }
 @media (min-width: 1600px) { .move-container { width: min(1360px, calc(100% - 160px)); } }
 @media (max-width: 1050px) {
   .move-container { width: calc(100% - 64px); }
